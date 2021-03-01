@@ -1,6 +1,7 @@
 (ns com.wsscode.pathom3.graphql
   (:require
     [clojure.spec.alpha :as s]
+    [clojure.string :as str]
     [clojure.walk :as walk]
     [com.fulcrologic.guardrails.core :refer [<- => >def >defn >fdef ? |]]
     [com.wsscode.misc.coll :as coll]
@@ -183,6 +184,27 @@
                   ::pco/output       output}))))
       roots)))
 
+(defn index-graphql-idents
+  [{::keys     [schema ident-map]
+    ::pci/keys [index-io]
+    :as        env}]
+  (let [schema (:__schema schema)
+        fields (-> schema :queryType :fields)
+        idents (filter (comp ident-map :name) fields)]
+    (-> {}
+        (into (mapcat (fn [{:keys [name type]}]
+                        (let [params        (get ident-map name)
+                              ident-key     (keyword name (str/join "-and-" (keys params)))
+                              entity-fields (mapv (fn [item] (ident-map-entry env item)) (vals params))
+                              entity-field  (cond-> entity-fields (= 1 (count entity-fields)) first)
+                              fields        (-> (get index-io #{(ffirst (type->field-entry env type))})
+                                                keys)]
+                          (mapv (fn [field]
+                                  [field {::entity-field entity-field
+                                          ::ident-key    ident-key}])
+                            fields))))
+              idents))))
+
 (defn index-schema [{::keys [resolver] :as config}]
   (let [config   (merge {::mung identity} config)
         resolver (or resolver (service-resolver-key config))
@@ -203,7 +225,10 @@
                                      #_(graphql-resolve config env))})}
 
        ::pci/index-io
-       (index-schema-io config)}
+       (index-schema-io config)
+
+       ::field->ident
+       (index-graphql-idents config)}
       (index-aux-resolvers config))))
 
 (defn normalize-schema
