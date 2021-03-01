@@ -67,17 +67,11 @@
     {name {}}
     {}))
 
-(defn index-type-key [env {:keys [name kind]}]
-  (let [key-fun (case kind
-                  "OBJECT" type-key
-                  "INTERFACE" interface-key)]
-    (key-fun env name)))
-
 (defn entity-field-key [{::keys [prefix]} entity field]
   (keyword (str prefix "." entity) field))
 
-(defn index-type [env {:keys [fields name interfaces] :as input}]
-  {#{(index-type-key env input)}
+(defn index-type [env {:keys [fields name interfaces] :as entry}]
+  {#{(type->field-name env entry)}
    (-> {}
        ; fields
        (into (map #(coll/make-map-entry
