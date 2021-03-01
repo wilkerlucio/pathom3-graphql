@@ -4,6 +4,7 @@
     [clojure.walk :as walk]
     [com.fulcrologic.guardrails.core :refer [<- => >def >defn >fdef ? |]]
     [com.wsscode.misc.coll :as coll]
+    [com.wsscode.pathom3.connect.indexes :as pci]
     [com.wsscode.pathom3.connect.operation :as pco]))
 
 (>def ::schema map?)
@@ -105,22 +106,19 @@
         (update-in [:__schema :queryType] #(merge % (get index (:name %))))
         (update-in [:__schema :mutationType] #(merge % (get index (:name %)))))))
 
-(defn index-schema-io [{::keys [prefix schema ident-map] :as input}]
+(defn index-schema-io [{::keys [prefix schema ident-map] :as config}]
   (let [schema (:__schema schema)]
     (-> {}
         (into (comp (filter (comp #{"OBJECT" "INTERFACE"} :kind))
-                    (map (partial index-type input)))
+                    (map (partial index-type config)))
               (:types schema))
-        #_(assoc #{} (into {} (map #(vector (keyword prefix (:name %))
-                                      (type->field-entry input (:type %))))
-                           (->> schema :queryType :fields)))
         (as-> <>
           (reduce (fn [idx {:keys [name type]}]
                     (if-let [params (get ident-map name)]
-                      (let [input-set (ident-map-params->io input params)]
-                        (update idx input-set coll/merge-grow {(ffirst (type->field-entry input type)) {}}))
+                      (let [input-set (ident-map-params->io config params)]
+                        (update idx input-set coll/merge-grow {(ffirst (type->field-entry config type)) {}}))
                       (update idx #{} coll/merge-grow
-                        {(keyword prefix name) {(ffirst (type->field-entry input type)) {}}})))
+                        {(keyword prefix name) {(ffirst (type->field-entry config type)) {}}})))
             <>
             (->> schema :queryType :fields))))))
 
@@ -191,40 +189,28 @@
                   ::pco/output       output}))))
       roots)))
 
-#_(defn index-schema [{::keys [resolver prefix] :as config}]
-    (let [config   (merge {::mung identity} config)
-          resolver (or resolver (service-resolver-key config))
-          config   (update config ::schema index-schema-types)
-          index-io (index-schema-io config)
-          config   (assoc config ::pci/index-io index-io
-                     ::resolver resolver)]
+(defn index-schema [{::keys [resolver] :as config}]
+  (let [config   (merge {::mung identity} config)
+        resolver (or resolver (service-resolver-key config))
+        config   (update config ::schema index-schema-types)
+        index-io (index-schema-io config)
+        config   (assoc config ::pci/index-io index-io
+                   ::resolver resolver)]
+    (pci/register
       {::pci/index-resolvers
-       {resolver {::pco/op-name           resolver
-                  ::pco/cache?            false
-                  ::graphql?              true
-                  ::pco/dynamic-resolver? true
-                  ::pco/resolve           (fn [env _]
-                                            (println "GO")
-                                            {}
-                                            #_(graphql-resolve config env))}}
+       {resolver
+        (pco/resolver
+          {::pco/op-name           resolver
+           ::pco/cache?            false
+           ::graphql?              true
+           ::pco/dynamic-resolver? true
+           ::pco/resolve           (fn [_env _]
+                                     {}
+                                     #_(graphql-resolve config env))})}
 
        ::pci/index-io
-       index-io
-
-       ::pci/index-oir
-       (index-schema-oir config)
-
-       ::pci/autocomplete-ignore
-       (index-autocomplete-ignore config)
-
-       ::pci/idents
-       (index-idents config)
-
-       ::pci/index-mutations
-       (index-mutations config)
-
-       ::field->ident
-       (index-graphql-idents config)}))
+       (index-schema-io config)}
+      (index-aux-resolvers config))))
 
 (defn normalize-schema
   "Depending on encoding settings sometimes the :kind can come as a keyword, the indexer expects it to

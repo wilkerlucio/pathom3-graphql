@@ -2,7 +2,10 @@
   (:require
     [clojure.test :refer [deftest is are run-tests testing]]
     [com.wsscode.pathom3.connect.indexes :as pci]
-    [com.wsscode.pathom3.graphql :as p.gql]))
+    [com.wsscode.pathom3.graphql :as p.gql]
+    [com.wsscode.pathom3.interface.eql :as p.eql]))
+
+(pci/register [])
 
 (def query-root-type
   (p.gql/normalize-schema
@@ -299,24 +302,36 @@
                                           "name"  :service.Repository/name}}
      ::p.gql/resolver  `supposed-resolver})
 
-  (pci/register
-    {::pci/index-io (p.gql/index-schema-io
-       {::p.gql/prefix    prefix
-        ::p.gql/schema    (p.gql/index-schema-types schema)
-        ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
-                           "savingsAccount" {"customerId" :service.Customer/id}
-                           "repository"     {"owner" :service.Customer/name
-                                             "name"  :service.Repository/name}}
-        ::p.gql/resolver  `supposed-resolver})}
-   (p.gql/index-aux-resolvers
-     {::p.gql/prefix    prefix
-      ::p.gql/schema    (p.gql/index-schema-types schema)
-      ::p.gql/ident-map {"customer"          {"customerId" :service.Customer/id}
-                         "savingsAccount"    {"customerId" :service.Customer/id}
-                         "repository"        {"owner" :service.Customer/name
-                                              "name"  :service.Repository/name}
-                         "creditCardAccount" {"customerId" :service.Customer/id}}
-      ::p.gql/resolver  `supposed-resolver}))
+  (let [env (p.gql/index-schema
+              {::p.gql/prefix    prefix
+               ::p.gql/schema    (p.gql/index-schema-types schema)
+               ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
+                                  "savingsAccount" {"customerId" :service.Customer/id}
+                                  "repository"     {"owner" :service.Customer/name
+                                                    "name"  :service.Repository/name}}
+               ::p.gql/resolver  `supposed-resolver})]
+    (meta (p.eql/process env
+       {:service.Customer/id 123}
+       [:service.Customer/name
+        :service.SavingsAccount/number])))
+
+  (p.gql/index-schema
+    {::p.gql/prefix    prefix
+     ::p.gql/schema    (p.gql/index-schema-types schema)
+     ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
+                        "savingsAccount" {"customerId" :service.Customer/id}
+                        "repository"     {"owner" :service.Customer/name
+                                          "name"  :service.Repository/name}}
+     ::p.gql/resolver  `supposed-resolver})
+
+  (p.gql/index-schema
+    {::p.gql/prefix    prefix
+     ::p.gql/schema    (p.gql/index-schema-types schema)
+     ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
+                        "savingsAccount" {"customerId" :service.Customer/id}
+                        "repository"     {"owner" :service.Customer/name
+                                          "name"  :service.Repository/name}}
+     ::p.gql/resolver  `supposed-resolver})
 
   (-> (p.gql/index-schema-types schema)
       :__schema))
