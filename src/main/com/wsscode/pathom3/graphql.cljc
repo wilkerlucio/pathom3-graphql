@@ -223,13 +223,11 @@
            ::pco/dynamic-resolver? true
            ::pco/resolve           (fn [_env _]
                                      {}
-                                     #_(graphql-resolve config env))})}
+                                     #_(graphql-resolve config env))
+           ::field->ident          (index-graphql-idents config)})}
 
        ::pci/index-io
        index-io
-
-       ::field->ident
-       (index-graphql-idents config)
 
        :com.wsscode.pathom.viz.query-editor/autocomplete-ignore
        (index-autocomplete-ignore config)}

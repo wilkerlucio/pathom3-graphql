@@ -450,40 +450,37 @@
   (p.gql/index-graphql-idents schema-test-config))
 
 (deftest index-schema-test
-  (let [{::p.gql/keys [field->ident]
-         ::pci/keys   [index-resolvers]
-         :as          indexes} (p.gql/index-schema schema-test-config)]
+  (let [{::pci/keys [index-resolvers]
+         :as        indexes} (p.gql/index-schema schema-test-config)]
     (is (= (pco/operation-config (get index-resolvers `graphql-sampler-resolver))
            '{:com.wsscode.pathom3.connect.operation/cache?            false
              :com.wsscode.pathom3.connect.operation/dynamic-resolver? true
              :com.wsscode.pathom3.connect.operation/op-name           com.wsscode.pathom3.graphql-test/graphql-sampler-resolver
-             :com.wsscode.pathom3.graphql/graphql?                    true}))
-
-    (is (= field->ident
-           {:service.Customer/preferredName     #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :customer/customerId},
-            :service.SavingsAccount/id          #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :savingsAccount/customerId},
-            :service.Customer/creditCardAccount #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :customer/customerId},
-            :service.Repository/name            #:com.wsscode.pathom3.graphql{:entity-field [:service.Customer/name
-                                                                                             :service.Repository/name],
-                                                                              :ident-key    :repository/owner-and-name},
-            :service.Customer/cpf               #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :customer/customerId},
-            :service.Repository/id              #:com.wsscode.pathom3.graphql{:entity-field [:service.Customer/name
-                                                                                             :service.Repository/name],
-                                                                              :ident-key    :repository/owner-and-name},
-            :service.Customer/name              #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :customer/customerId},
-            :service.Customer/savingsAccount    #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :customer/customerId},
-            :service.SavingsAccount/number      #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :savingsAccount/customerId},
-            :service.Customer/feed              #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :customer/customerId},
-            :service.Customer/id                #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :customer/customerId}}))
+             :com.wsscode.pathom3.graphql/graphql?                    true
+             ::p.gql/field->ident                                     {:service.Customer/preferredName     #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                                                                                         :ident-key    :customer/customerId},
+                                                                       :service.SavingsAccount/id          #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                                                                                         :ident-key    :savingsAccount/customerId},
+                                                                       :service.Customer/creditCardAccount #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                                                                                         :ident-key    :customer/customerId},
+                                                                       :service.Repository/name            #:com.wsscode.pathom3.graphql{:entity-field [:service.Customer/name
+                                                                                                                                                        :service.Repository/name],
+                                                                                                                                         :ident-key    :repository/owner-and-name},
+                                                                       :service.Customer/cpf               #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                                                                                         :ident-key    :customer/customerId},
+                                                                       :service.Repository/id              #:com.wsscode.pathom3.graphql{:entity-field [:service.Customer/name
+                                                                                                                                                        :service.Repository/name],
+                                                                                                                                         :ident-key    :repository/owner-and-name},
+                                                                       :service.Customer/name              #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                                                                                         :ident-key    :customer/customerId},
+                                                                       :service.Customer/savingsAccount    #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                                                                                         :ident-key    :customer/customerId},
+                                                                       :service.SavingsAccount/number      #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                                                                                         :ident-key    :savingsAccount/customerId},
+                                                                       :service.Customer/feed              #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                                                                                         :ident-key    :customer/customerId},
+                                                                       :service.Customer/id                #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                                                                                         :ident-key    :customer/customerId}}}))
 
     (is (= (get indexes :com.wsscode.pathom.viz.query-editor/autocomplete-ignore)
            #{:service.interfaces/FeedEvent
