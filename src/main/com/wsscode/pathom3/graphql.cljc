@@ -206,8 +206,7 @@
               idents))))
 
 (defn index-schema [{::keys [resolver] :as config}]
-  (let [config   (merge {::mung identity} config)
-        resolver (or resolver (service-resolver-key config))
+  (let [resolver (or resolver (service-resolver-key config))
         config   (update config ::schema index-schema-types)
         index-io (index-schema-io config)
         config   (assoc config ::pci/index-io index-io
@@ -225,7 +224,7 @@
                                      #_(graphql-resolve config env))})}
 
        ::pci/index-io
-       (index-schema-io config)
+       index-io
 
        ::field->ident
        (index-graphql-idents config)}

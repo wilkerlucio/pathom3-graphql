@@ -2,6 +2,7 @@
   (:require
     [clojure.test :refer [deftest is are run-tests testing]]
     [com.wsscode.pathom3.connect.indexes :as pci]
+    [com.wsscode.pathom3.connect.operation :as pco]
     [com.wsscode.pathom3.graphql :as p.gql]
     [com.wsscode.pathom3.interface.eql :as p.eql]))
 
@@ -210,240 +211,7 @@
                                              :service.OnboardingEvent/title    {}
                                              :service.interfaces/FeedEvent     {}}})))
 
-(def supposed-resolver nil)
-
-#_(deftest index-schema-test
-    (is (= (-> (p.gql/index-schema {::p.gql/prefix    prefix
-                                    ::p.gql/schema    schema
-                                    ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
-                                                       "savingsAccount" {"customerId" :service.Customer/id}
-                                                       "repository"     {"owner" :service.Customer/name
-                                                                         "name"  :service.Repository/name}}
-                                    ::p.gql/resolver  `supposed-resolver})
-               (update-in [::pci/index-resolvers `supposed-resolver] dissoc ::pco/resolve)
-               (update-in [::pci/index-mutations 'com.wsscode.pathom3.graphql.service-mutations/service] dissoc ::pco/mutate))
-           indexes)))
-
-;(deftest alias-for-line-test
-;  (is (= (p.gql/alias-for-line "query { \ncustomer(customerId: \"123\") {\n}}" 2)
-;         nil))
-;
-;  (is (= (p.gql/alias-for-line "query { \n_customer_customer_id_123: customer(customerId: \"123\") {\n}}" 2)
-;         "_customer_customer_id_123"))
-;
-;  (is (= (p.gql/alias-for-line "query { \n_customer_customer_id_123: customer(customerId: \"123\") {\n}}" 10)
-;         nil)))
-;
-;(deftest index-graphql-errors-test
-;  (is (= (p.gql/index-graphql-errors
-;           [{:message   "Parse error on \"-\" (error) at [3 11]"
-;             :locations [{:line 3 :column 11}]}])
-;         {nil [{:message   "Parse error on \"-\" (error) at [3 11]"
-;                :locations [{:line 3 :column 11}]}]}))
-;  (is (= (p.gql/index-graphql-errors
-;           [{:message "Forbidden"
-;             :path    ["didWrong"]}])
-;         {["didWrong"] [{:message "Forbidden", :path ["didWrong"]}]}))
-;  (is (= (p.gql/index-graphql-errors
-;           [{:message "Forbidden"
-;             :path    ["query" "didWrong"]}])
-;         {["didWrong"] [{:message "Forbidden", :path ["didWrong"]}]}))
-;  (is (= (p.gql/index-graphql-errors
-;           [{:path       ["mutation" "addStar" "clientMutation"]
-;             :extensions {:code      "undefinedField"
-;                          :typeName  "AddStarPayload"
-;                          :fieldName "clientMutation"}
-;             :locations  [{:line 3 :column 5}]
-;             :message    "Field 'clientMutation' doesn't exist on type 'AddStarPayload'"}])
-;         {["addStar" "clientMutation"] [{:path       ["addStar" "clientMutation"]
-;                                         :extensions {:code      "undefinedField"
-;                                                      :typeName  "AddStarPayload"
-;                                                      :fieldName "clientMutation"}
-;                                         :locations  [{:line 3 :column 5}]
-;                                         :message    "Field 'clientMutation' doesn't exist on type 'AddStarPayload'"}]})))
-;
-;(deftest parse-item-test
-;  (is (= (p.gql/parser-item {::p/entity {}} [])
-;         {}))
-;  (is (= (p.gql/parser-item {::p/entity     {:itemValue 42}
-;                             ::p.gql/demung pg/camel-case}
-;           [:ns/item-value])
-;         {:ns/item-value 42}))
-;  (is (= (p.gql/parser-item {::p/entity               {:itemValue {:x 1 :y 2}}
-;                             ::p/placeholder-prefixes #{">"}}
-;           [{:itemValue [:x {:>/sub [:y]}]}])
-;         {:itemValue {:x 1 :>/sub {:y 2}}}))
-;  (is (= (p.gql/parser-item {::p/entity     {:didWrong nil}
-;                             ::p.gql/demung pg/camel-case
-;                             ::p.gql/errors (p.gql/index-graphql-errors
-;                                              [{:message "Forbidden"
-;                                                :path    ["didWrong"]}])}
-;           [{:did-wrong [:anything]}])
-;         {:did-wrong ::p/reader-error}))
-;  (testing "capture error"
-;    (let [errors* (atom {})]
-;      (is (= (p.gql/parser-item {::p/entity            {:_customer_customer_id_123 {:creditCardAccount nil}}
-;                                 ::p/errors*           errors*
-;                                 ::p.gql/demung        pg/camel-case
-;                                 ::p.gql/base-path     [[:service.Customer/id "123"]]
-;                                 ::p.gql/graphql-query "query \n{_customer_customer_id_123: customer(customerId: \"123\") \n{}}"
-;                                 ::p.gql/errors        (p.gql/index-graphql-errors [{:locations [{:column 123 :line 2}]
-;                                                                                     :message   "Forbidden"
-;                                                                                     :path      ["customer" "creditCardAccount"]
-;                                                                                     :type      "forbidden"}])}
-;               [{[:customer/customerId "123"] [{:service.Customer/credit-card-account [:service.credit-card-balances/available]}]}])
-;             {[:customer/customerId "123"] {:service.Customer/credit-card-account ::p/reader-error}}))
-;      (is (= @errors*
-;             {[[:service.Customer/id "123"] :service.Customer/credit-card-account] {:locations [{:column 123 :line 2}]
-;                                                                                    :message   "Forbidden"
-;                                                                                    :path      ["customer" "creditCardAccount"]
-;                                                                                    :type      "forbidden"}}))))
-;
-;  (testing "mutation errors"
-;    {:errors
-;     [{:path      ["query" "nameWithOwneree"],
-;       :extensions
-;                  {:code      "undefinedField",
-;                   :typeName  "Query",
-;                   :fieldName "nameWithOwneree"},
-;       :locations [{:line 7, :column 3}],
-;       :message
-;                  "Field 'nameWithOwneree' doesn't exist on type 'Query'"}]}
-;
-;    {:errors
-;     [{:message   "Parse error on \"-\" (error) at [3 11]"
-;       :locations [{:line 3 :column 11}]}]}))
-;
-;; TODO proper process mutation error responses
-;
-;(comment
-;  (let [errors* (atom {})]
-;    [(p.gql/parser-item {::p/entity            nil
-;                         ::p/errors*           errors*
-;                         ::p.gql/base-path     []
-;                         ::p.gql/graphql-query "query {\n  addStar(input: {starrableId: \"MDEwOlJlcG9zaXRvcnk5ODU5MDk2MQ==\"}) {\n    clientMutation\n    starrable {\n      viewerHasStarred\n    }\n  }\n}"
-;                         ::p.gql/errors        (p.gql/index-graphql-errors [{:path       ["mutation" "addStar" "clientMutation"]
-;                                                                             :extensions {:code      "undefinedField"
-;                                                                                          :typeName  "AddStarPayload"
-;                                                                                          :fieldName "clientMutation"}
-;                                                                             :locations  [{:line 3 :column 5}]
-;                                                                             :message    "Field 'clientMutation' doesn't exist on type 'AddStarPayload'"}])}
-;       '[{(:github/addStar
-;            {:github/input
-;             {:github/starrableId "MDEwOlJlcG9zaXRvcnk5ODU5MDk2MQ=="}})
-;          [:clientMutation {:starrable [:viewerHasStarred]}]}])
-;     @errors*])
-;
-;  (let [errors* (atom {})]
-;    [(p.gql/parser-item {::p/entity            nil
-;                         ::p/errors*           errors*
-;                         ::p.gql/base-path     []
-;                         ::p.gql/graphql-query "query {\n  addStar(input: {starrableId: \"MDEwOlJlcG9zaXRvcnk5ODU5MDk2MQ==\"}) {\n    clientMutation\n    starrable {\n      viewerHasStarred\n    }\n  }\n}"
-;                         ::p.gql/errors        (p.gql/index-graphql-errors
-;                                                 [{:message   "Parse error on \"-\" (error) at [3 11]"
-;                                                   :locations [{:line 3 :column 11}]}])}
-;       '[{(:github/addStar
-;            {:github/input
-;             {:github/starrableId "MDEwOlJlcG9zaXRvcnk5ODU5MDk2MQ=="}})
-;          [:clientMutation {:starrable [:viewerHasStarred]}]}])
-;     @errors*]))
-;
-;(comment
-;  (println
-;    (p.gql/query->graphql '[{(:github/addStar
-;                               {:github/input
-;                                {:github/starrableId "MDEwOlJlcG9zaXRvcnk5ODU5MDk2MQ=="}})
-;                             [:clientMutation {:starrable [:viewerHasStarred]}]}]
-;      {})))
-;
-;(defn- normalize-query-whitespace [s]
-;  (str/trim (str/replace s #"\s+" " ")))
-;
-;(deftest query->graphql-test
-;  (are [query out] (= (normalize-query-whitespace query) out)
-;
-;    (p.gql/query->graphql [{:credit-card [:number]}] {::p.gql/demung pg/camel-case})
-;    "query { creditCard { number } }"
-;
-;    (p.gql/query->graphql [(list 'call {:id (fp/tempid) :param "value"})] {::p.gql/tempid? fp/tempid?})
-;    "mutation { call(param: \"value\") { id} }"))
-;
-;(defn q [query]
-;  (p/query->ast1 [query]))
-;
-;(deftest ast->graphql-test
-;  (is (= (p.gql/ast->graphql {:ast         (q :service/banks)
-;                              ::pc/indexes indexes} {})
-;         [:service/banks]))
-;  (is (= (p.gql/ast->graphql {:ast         (q {:service/banks [:service.Bank/name]})
-;                              ::pc/indexes indexes} {})
-;         [{:service/banks [:service.Bank/name]}]))
-;  (is (= (p.gql/ast->graphql {:ast         (q :service.Customer/cpf)
-;                              ::pc/indexes indexes}
-;           {:service.Customer/id "123"})
-;         [{[:customer/customerId
-;            "123"] [:service.Customer/cpf]}])))
-;
-;(defn query-env [query-attribute entity]
-;  {:ast                     (q query-attribute)
-;   ::p/entity               entity
-;   ::p/placeholder-prefixes #{">"}
-;   ::p/parent-query         [query-attribute]
-;   ::p.gql/prefix           prefix
-;   ::pc/indexes             indexes})
-;
-;(deftest build-query-test
-;  (testing "build global attribute"
-;    (is (= (p.gql/build-query (query-env :service/banks
-;                                {:service.Customer/id "123"}))
-;           [:service/banks])))
-;
-;  (testing "remove pathom params"
-;    (is (= (p.gql/build-query (query-env '(:service/banks {:pathom/as :banks})
-;                                {:service.Customer/id "123"}))
-;           ['(:service/banks)])))
-;
-;  (testing "ident join"
-;    (is (= (p.gql/build-query (query-env :service.Customer/cpf
-;                                {:service.Customer/id "123"}))
-;           [{[:customer/customerId "123"] [:service.Customer/cpf]}])))
-;
-;  (testing "ident join on multi param input"
-;    (is (= (p.gql/build-query (query-env :service.Repository/id
-;                                {:service.Customer/name   "customer"
-;                                 :service.Repository/name "repository"}))
-;           [{[:repository/owner-and-name ["customer" "repository"]] [:service.Repository/id]}])))
-;
-;  (testing "ignores ident queries"
-;    (is (= (p.gql/build-query (query-env {[:service.Customer/id "123"] [:service.Customer/name]}
-;                                {:service.Customer/id "123"}))
-;           [])))
-;
-;  (testing "merge sibling queries"
-;    (is (= (p.gql/build-query (assoc (query-env :service.Customer/id {:service.Customer/id "123"})
-;                                ::p/parent-query [:service.Customer/id
-;                                                  :service.Customer/cpf
-;                                                  :service/banks
-;                                                  :service.Customer/name
-;                                                  :other/thing]))
-;           [{[:customer/customerId "123"] [:service.Customer/cpf :service.Customer/name]}
-;            :service/banks])))
-;
-;  (testing "placeholder queries"
-;    (is (= (p.gql/build-query (assoc (query-env :service.Customer/id {:service.Customer/id "123"})
-;                                ::p/parent-query [:service.Customer/id
-;                                                  {:>/thing [:service.Customer/cpf]}
-;                                                  :service/banks
-;                                                  :service.Customer/name
-;                                                  :other/thing]))
-;           [:service/banks
-;            {[:customer/customerId "123"] [:service.Customer/name :service.Customer/cpf]}]))))
-;
-;(deftest pull-idents-test
-;  (is (= (p.gql/pull-idents {:service/banks               [{:service.Bank/name "Dino"}]
-;                             [:customer/customerId "123"] {:service.Customer/name "Missy"}})
-;         {:service/banks         [{:service.Bank/name "Dino"}]
-;          :service.Customer/name "Missy"})))
+(def graphql-sampler-resolver nil)
 
 (def indexes
   `{:com.wsscode.pathom.connect.graphql2/field->ident {:service.Customer/cpf               #:com.wsscode.pathom.connect.graphql2{:entity-field :service.Customer/id
@@ -517,37 +285,39 @@
                                                                                                                      :com.wsscode.pathom.connect/sym                  com.wsscode.pathom.connect.graphql.service-mutations/service}
                                                        service/removeStar                                           #:com.wsscode.pathom.connect{:sym com.wsscode.pathom.connect.graphql.service-mutations/service}
                                                        service/requestReviews                                       #:com.wsscode.pathom.connect{:sym com.wsscode.pathom.connect.graphql.service-mutations/service}}
-    :com.wsscode.pathom.connect/index-oir             {:service.Customer/cpf               {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service.Customer/creditCardAccount {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service.Customer/feed              {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service.Customer/id                {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service.Customer/name              {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service.Customer/preferredName     {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service.Customer/savingsAccount    {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
+    :com.wsscode.pathom.connect/index-oir             {:service.Customer/cpf               {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service.Customer/creditCardAccount {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service.Customer/feed              {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service.Customer/id                {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service.Customer/name              {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service.Customer/preferredName     {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service.Customer/savingsAccount    {#{:service.Customer/id} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
                                                        :service.Repository/id              {#{:service.Customer/name
-                                                                                              :service.Repository/name} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
+                                                                                              :service.Repository/name} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
                                                        :service.Repository/name            {#{:service.Customer/name
-                                                                                              :service.Repository/name} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service/banks                      {#{} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service/creditCardAccount          {#{} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service/customer                   {#{} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service/repository                 {#{} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service/savingsAccount             {#{} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}
-                                                       :service/viewer                     {#{} #{com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}}
-    :com.wsscode.pathom.connect/index-resolvers       #:com.wsscode.pathom.connect.graphql2-test{supposed-resolver {:com.wsscode.pathom.connect.graphql2/graphql? true
-                                                                                                                    :com.wsscode.pathom.connect/cache?            false
-                                                                                                                    :com.wsscode.pathom.connect/dynamic-resolver? true
-                                                                                                                    :com.wsscode.pathom.connect/sym               com.wsscode.pathom.connect.graphql2-test/supposed-resolver}}})
+                                                                                              :service.Repository/name} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service/banks                      {#{} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service/creditCardAccount          {#{} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service/customer                   {#{} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service/repository                 {#{} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service/savingsAccount             {#{} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}
+                                                       :service/viewer                     {#{} #{com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}}
+    :com.wsscode.pathom.connect/index-resolvers       #:com.wsscode.pathom.connect.graphql2-test{graphql-sampler-resolver {:com.wsscode.pathom.connect.graphql2/graphql? true
+                                                                                                                           :com.wsscode.pathom.connect/cache?            false
+                                                                                                                           :com.wsscode.pathom.connect/dynamic-resolver? true
+                                                                                                                           :com.wsscode.pathom.connect/sym               com.wsscode.pathom.connect.graphql2-test/graphql-sampler-resolver}}})
+
+(def schema-test-config
+  {::p.gql/prefix    prefix
+   ::p.gql/schema    (p.gql/index-schema-types schema)
+   ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
+                      "savingsAccount" {"customerId" :service.Customer/id}
+                      "repository"     {"owner" :service.Customer/name
+                                        "name"  :service.Repository/name}}
+   ::p.gql/resolver  `graphql-sampler-resolver})
 
 (deftest index-schema-io-test
-  (is (= (p.gql/index-schema-io
-           {::p.gql/prefix    prefix
-            ::p.gql/schema    (p.gql/index-schema-types schema)
-            ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
-                               "savingsAccount" {"customerId" :service.Customer/id}
-                               "repository"     {"owner" :service.Customer/name
-                                                 "name"  :service.Repository/name}}
-            ::p.gql/resolver  `supposed-resolver})
+  (is (= (p.gql/index-schema-io schema-test-config)
          {#{:service.types/CreditCardBalances}               #:service.CreditCardBalances{:available {},
                                                                                           :due       {},
                                                                                           :future    {},
@@ -583,24 +353,81 @@
                                                                                 :requestReviews {}}})))
 
 (deftest index-aux-resolvers-test
-  (p.gql/index-aux-resolvers
-    {::p.gql/prefix    prefix
-     ::p.gql/schema    (p.gql/index-schema-types schema)
-     ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
-                        "savingsAccount" {"customerId" :service.Customer/id}
-                        "repository"     {"owner" :service.Customer/name
-                                          "name"  :service.Repository/name}}
-     ::p.gql/resolver  `supposed-resolver}))
+  (is (= (->> (p.gql/index-aux-resolvers schema-test-config)
+              (mapv pco/operation-config))
+         '[#:com.wsscode.pathom3.connect.operation{:input        [],
+                                                   :provides     #:service{:banks #:service.Bank{:id   {},
+                                                                                                 :name {}}},
+                                                   :op-name      service.root-entry/banks,
+                                                   :dynamic-name com.wsscode.pathom3.graphql-test/graphql-sampler-resolver,
+                                                   :output       [#:service{:banks [:service.Bank/id
+                                                                                    :service.Bank/name]}],
+                                                   :requires     {}}
+           #:com.wsscode.pathom3.connect.operation{:input        [],
+                                                   :provides     #:service{:creditCardAccount #:service.CreditCardAccount{:id     {},
+                                                                                                                          :number {}}},
+                                                   :op-name      service.root-entry/creditCardAccount,
+                                                   :dynamic-name com.wsscode.pathom3.graphql-test/graphql-sampler-resolver,
+                                                   :output       [#:service{:creditCardAccount [:service.CreditCardAccount/id
+                                                                                                :service.CreditCardAccount/number]}],
+                                                   :requires     {}}
+           #:com.wsscode.pathom3.connect.operation{:input        [:service.Customer/id],
+                                                   :provides     #:service.Customer{:id                {},
+                                                                                    :cpf               {},
+                                                                                    :creditCardAccount {},
+                                                                                    :feed              {},
+                                                                                    :name              {},
+                                                                                    :preferredName     {},
+                                                                                    :savingsAccount    {}},
+                                                   :op-name      service.root-entry/customer,
+                                                   :dynamic-name com.wsscode.pathom3.graphql-test/graphql-sampler-resolver,
+                                                   :output       [:service.Customer/id
+                                                                  :service.Customer/cpf
+                                                                  :service.Customer/creditCardAccount
+                                                                  :service.Customer/feed
+                                                                  :service.Customer/name
+                                                                  :service.Customer/preferredName
+                                                                  :service.Customer/savingsAccount],
+                                                   :requires     #:service.Customer{:id {}}}
+           #:com.wsscode.pathom3.connect.operation{:input        [:service.Customer/name
+                                                                  :service.Repository/name],
+                                                   :provides     #:service.Repository{:id   {},
+                                                                                      :name {}},
+                                                   :op-name      service.root-entry/repository,
+                                                   :dynamic-name com.wsscode.pathom3.graphql-test/graphql-sampler-resolver,
+                                                   :output       [:service.Repository/id
+                                                                  :service.Repository/name],
+                                                   :requires     {:service.Customer/name   {},
+                                                                  :service.Repository/name {}}}
+           #:com.wsscode.pathom3.connect.operation{:input        [:service.Customer/id],
+                                                   :provides     #:service.SavingsAccount{:id     {},
+                                                                                          :number {}},
+                                                   :op-name      service.root-entry/savingsAccount,
+                                                   :dynamic-name com.wsscode.pathom3.graphql-test/graphql-sampler-resolver,
+                                                   :output       [:service.SavingsAccount/id
+                                                                  :service.SavingsAccount/number],
+                                                   :requires     #:service.Customer{:id {}}}
+           #:com.wsscode.pathom3.connect.operation{:input        [],
+                                                   :provides     #:service{:viewer #:service.Customer{:id                {},
+                                                                                                      :cpf               {},
+                                                                                                      :creditCardAccount {},
+                                                                                                      :feed              {},
+                                                                                                      :name              {},
+                                                                                                      :preferredName     {},
+                                                                                                      :savingsAccount    {}}},
+                                                   :op-name      service.root-entry/viewer,
+                                                   :dynamic-name com.wsscode.pathom3.graphql-test/graphql-sampler-resolver,
+                                                   :output       [#:service{:viewer [:service.Customer/id
+                                                                                     :service.Customer/cpf
+                                                                                     :service.Customer/creditCardAccount
+                                                                                     :service.Customer/feed
+                                                                                     :service.Customer/name
+                                                                                     :service.Customer/preferredName
+                                                                                     :service.Customer/savingsAccount]}],
+                                                   :requires     {}}])))
 
 (comment
-  (p.gql/index-schema-io
-    {::p.gql/prefix    prefix
-     ::p.gql/schema    (p.gql/index-schema-types schema)
-     ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
-                        "savingsAccount" {"customerId" :service.Customer/id}
-                        "repository"     {"owner" :service.Customer/name
-                                          "name"  :service.Repository/name}}
-     ::p.gql/resolver  `supposed-resolver})
+  (p.gql/index-schema-io schema-test-config)
 
   (let [env (p.gql/index-schema
               {::p.gql/prefix    prefix
@@ -609,29 +436,50 @@
                                   "savingsAccount" {"customerId" :service.Customer/id}
                                   "repository"     {"owner" :service.Customer/name
                                                     "name"  :service.Repository/name}}
-               ::p.gql/resolver  `supposed-resolver})]
+               ::p.gql/resolver  `graphql-sampler-resolver})]
     (meta (p.eql/process env
             {:service.Customer/id 123}
             [:service.Customer/name
              :service.SavingsAccount/number])))
 
-  (p.gql/index-schema
-    {::p.gql/prefix    prefix
-     ::p.gql/schema    (p.gql/index-schema-types schema)
-     ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
-                        "savingsAccount" {"customerId" :service.Customer/id}
-                        "repository"     {"owner" :service.Customer/name
-                                          "name"  :service.Repository/name}}
-     ::p.gql/resolver  `supposed-resolver})
-
-  (p.gql/index-schema
-    {::p.gql/prefix    prefix
-     ::p.gql/schema    (p.gql/index-schema-types schema)
-     ::p.gql/ident-map {"customer"       {"customerId" :service.Customer/id}
-                        "savingsAccount" {"customerId" :service.Customer/id}
-                        "repository"     {"owner" :service.Customer/name
-                                          "name"  :service.Repository/name}}
-     ::p.gql/resolver  `supposed-resolver})
+  (p.gql/index-schema schema-test-config)
 
   (-> (p.gql/index-schema-types schema)
-      :__schema))
+      :__schema)
+
+  (p.gql/index-graphql-idents schema-test-config))
+
+(deftest index-schema-test
+  (let [{::p.gql/keys [field->ident]
+         ::pci/keys   [index-resolvers]} (p.gql/index-schema schema-test-config)]
+    (is (= (pco/operation-config (get index-resolvers `graphql-sampler-resolver))
+           '{:com.wsscode.pathom3.connect.operation/cache?            false
+             :com.wsscode.pathom3.connect.operation/dynamic-resolver? true
+             :com.wsscode.pathom3.connect.operation/op-name           com.wsscode.pathom3.graphql-test/graphql-sampler-resolver
+             :com.wsscode.pathom3.graphql/graphql?                    true}))
+
+    (is (= field->ident
+           {:service.Customer/preferredName     #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                              :ident-key    :customer/customerId},
+            :service.SavingsAccount/id          #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                              :ident-key    :savingsAccount/customerId},
+            :service.Customer/creditCardAccount #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                              :ident-key    :customer/customerId},
+            :service.Repository/name            #:com.wsscode.pathom3.graphql{:entity-field [:service.Customer/name
+                                                                                             :service.Repository/name],
+                                                                              :ident-key    :repository/owner-and-name},
+            :service.Customer/cpf               #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                              :ident-key    :customer/customerId},
+            :service.Repository/id              #:com.wsscode.pathom3.graphql{:entity-field [:service.Customer/name
+                                                                                             :service.Repository/name],
+                                                                              :ident-key    :repository/owner-and-name},
+            :service.Customer/name              #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                              :ident-key    :customer/customerId},
+            :service.Customer/savingsAccount    #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                              :ident-key    :customer/customerId},
+            :service.SavingsAccount/number      #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                              :ident-key    :savingsAccount/customerId},
+            :service.Customer/feed              #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                              :ident-key    :customer/customerId},
+            :service.Customer/id                #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
+                                                                              :ident-key    :customer/customerId}}))))
