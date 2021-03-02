@@ -451,7 +451,8 @@
 
 (deftest index-schema-test
   (let [{::p.gql/keys [field->ident]
-         ::pci/keys   [index-resolvers]} (p.gql/index-schema schema-test-config)]
+         ::pci/keys   [index-resolvers]
+         :as          indexes} (p.gql/index-schema schema-test-config)]
     (is (= (pco/operation-config (get index-resolvers `graphql-sampler-resolver))
            '{:com.wsscode.pathom3.connect.operation/cache?            false
              :com.wsscode.pathom3.connect.operation/dynamic-resolver? true
@@ -482,4 +483,15 @@
             :service.Customer/feed              #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
                                                                               :ident-key    :customer/customerId},
             :service.Customer/id                #:com.wsscode.pathom3.graphql{:entity-field :service.Customer/id,
-                                                                              :ident-key    :customer/customerId}}))))
+                                                                              :ident-key    :customer/customerId}}))
+
+    (is (= (get indexes :com.wsscode.pathom.viz.query-editor/autocomplete-ignore)
+           #{:service.interfaces/FeedEvent
+             :service.types/Bank
+             :service.types/CreditCardAccount
+             :service.types/CreditCardBalances
+             :service.types/Customer
+             :service.types/Mutation
+             :service.types/OnboardingEvent
+             :service.types/Repository
+             :service.types/SavingsAccount}))))

@@ -132,14 +132,6 @@
       inputs)
     []))
 
-;; how to convert root entries
-
-;; 1. global, no args: put nested under the entry name from graphql
-;; 2. with args
-
-;; to wrap or no to wrap??
-;; -- when there is ident map, no wrap
-
 (defn get-type [env entry]
   (get-in env [::schema ::types-index (type-leaf-name entry)]))
 
@@ -185,6 +177,9 @@
       roots)))
 
 (defn index-graphql-idents
+  "The idents index is used to reconstruct the GraphQL query when attributes are used
+  at the root level. In this case, to convert from Pathom to GraphQL we need to find
+  which entry point gives that attribute, and wraps around it."
   [{::keys     [schema ident-map]
     ::pci/keys [index-io]
     :as        env}]
@@ -204,6 +199,13 @@
                                           ::ident-key    ident-key}])
                             fields))))
               idents))))
+
+(defn index-autocomplete-ignore [{::keys [schema] :as env}]
+  (let [schema (:__schema schema)]
+    (-> #{}
+        (into (comp (filter (comp #{"OBJECT" "INTERFACE"} :kind))
+                    (map (partial type->field-name env)))
+              (:types schema)))))
 
 (defn index-schema [{::keys [resolver] :as config}]
   (let [resolver (or resolver (service-resolver-key config))
@@ -227,7 +229,10 @@
        index-io
 
        ::field->ident
-       (index-graphql-idents config)}
+       (index-graphql-idents config)
+
+       :com.wsscode.pathom.viz.query-editor/autocomplete-ignore
+       (index-autocomplete-ignore config)}
       (index-aux-resolvers config))))
 
 (defn normalize-schema
