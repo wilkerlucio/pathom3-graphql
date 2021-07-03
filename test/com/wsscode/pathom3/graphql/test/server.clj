@@ -1,8 +1,12 @@
 (ns com.wsscode.pathom3.graphql.test.server
   (:require [clojure.data.json :as json]
+            [edn-query-language.eql-graphql :as eql-gql]
+            [com.wsscode.pathom3.interface.smart-map :as psm]
+            [com.wsscode.pathom3.graphql :as p.gql]
             [com.walmartlabs.lacinia :refer [execute]]
             [com.walmartlabs.lacinia.schema :as schema]
-            [com.walmartlabs.lacinia.util :as util]))
+            [com.walmartlabs.lacinia.util :as util]
+            [com.wsscode.pathom3.interface.eql :as p.eql]))
 
 (def schema
   '{:enums
@@ -94,5 +98,51 @@
 (defn request [query]
   (json/write-str (execute star-wars-schema query nil nil)))
 
+(defn load-schema [request]
+  (let [schema-data (json/read-str (request (eql-gql/query->graphql p.gql/schema-query)))]
+    (-> (p.gql/load-schema {::p.gql/prefix "acme.stars"} schema-data))))
+
+(def schema
+  (load-schema request))
+
 (comment
+  (-> (load-schema request)
+      ::p.gql/gql-query-type
+      ::p.gql/gql-type-indexable?)
+
+  (-> (load-schema request)
+      ::p.gql/gql-query-type
+      ::p.gql/gql-type-qualified-name)
+
+  (-> (load-schema request)
+      ::p.gql/gql-types-index)
+
+  (->> (load-schema request)
+       ::p.gql/gql-all-types
+       (mapv ::p.gql/gql-type-qualified-name))
+
+  (->> (load-schema request)
+       ::p.gql/gql-all-types)
+
+  (->> (load-schema request)
+       ::p.gql/gql-indexable-types
+       )
+
+  (->> (psm/sm-replace-context schema
+         {::p.gql/gql-type-name "human"})
+       ::p.gql/gql-type-interfaces
+       (mapv ::p.gql/gql-type-qualified-name))
+
+  (-> schema
+      (assoc ::p.gql/gql-type-name "human")
+      ::p.gql/gql-type-resolver)
+
+  (tap> (psm/sm-entity schema))
+
+  (time
+    (->> schema
+         ::p.gql/gql-indexable-types
+         (mapv ::p.gql/gql-type-resolver)))
+
+  (json/read-str (request (eql-gql/query->graphql p.gql/schema-query)))
   (request "{\n  human {\n    id\n    name\n    friends {\n      name\n    }\n  }\n}"))
