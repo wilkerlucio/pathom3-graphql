@@ -1,12 +1,15 @@
 (ns com.wsscode.pathom3.graphql.test.server
   (:require [clojure.data.json :as json]
+            [org.httpkit.client :as http]
             [edn-query-language.eql-graphql :as eql-gql]
             [com.wsscode.pathom3.interface.smart-map :as psm]
             [com.wsscode.pathom3.graphql :as p.gql]
             [com.walmartlabs.lacinia :refer [execute]]
             [com.walmartlabs.lacinia.schema :as schema]
             [com.walmartlabs.lacinia.util :as util]
-            [com.wsscode.pathom3.interface.eql :as p.eql]))
+            [com.wsscode.pathom3.interface.eql :as p.eql]
+            [com.wsscode.pathom3.connect.operation :as pco]
+            [com.wsscode.pathom3.connect.indexes :as pci]))
 
 (def schema
   '{:enums
@@ -96,16 +99,38 @@
       schema/compile))
 
 (defn request [query]
-  (json/write-str (execute star-wars-schema query nil nil)))
+  (json/read-str (json/write-str (execute star-wars-schema query nil nil))))
+
+(defn request2 [query]
+  (-> @(http/request
+         {:url     "https://swapi-graphql.netlify.app/.netlify/functions/index"
+          :method  :post
+          :headers {"Content-Type" "application/json"
+                    "Accept"       "*/*"}
+          :body    (json/write-str {:query query})})
+      :body
+      json/read-str))
 
 (defn load-schema [request]
-  (let [schema-data (json/read-str (request (eql-gql/query->graphql p.gql/schema-query)))]
-    (-> (p.gql/load-schema {::p.gql/prefix "acme.stars"} schema-data))))
+  (p.gql/load-schema {::p.gql/namespace "acme.stars"} request))
 
 (def schema
   (load-schema request))
 
 (comment
+  (request2 "{\n  allPeople {\n    people {\n      id\n      name\n    }\n  }\n}")
+
+  (load-schema request2)
+
+  (-> @(http/request
+         {:url     "https://swapi-graphql.netlify.app/.netlify/functions/index"
+          :method  :post
+          :headers {"Content-Type" "application/json"
+                    "Accept"       "*/*"}
+          :body    (json/write-str {:query "{\n  allPeople {\n    people {\n      id\n      name\n    }\n  }\n}"})})
+      :body
+      json/read-str)
+
   (-> (load-schema request)
       ::p.gql/gql-query-type
       ::p.gql/gql-type-indexable?)
@@ -139,10 +164,17 @@
 
   (tap> (psm/sm-entity schema))
 
-  (time
-    (->> schema
-         ::p.gql/gql-indexable-types
-         (mapv ::p.gql/gql-type-resolver)))
+  (->> schema
+       ::p.gql/gql-indexable-types
+       (mapv ::p.gql/gql-type-resolver))
+
+  (->> schema
+       ::p.gql/gql-pathom-indexes)
+
+  (tap> (load-schema request2))
+
+  (->> (load-schema request2)
+       ::p.gql/gql-pathom-indexes)
 
   (json/read-str (request (eql-gql/query->graphql p.gql/schema-query)))
   (request "{\n  human {\n    id\n    name\n    friends {\n      name\n    }\n  }\n}"))
