@@ -1,25 +1,19 @@
 (ns com.wsscode.pathom3.graphql
   (:require
     [clojure.spec.alpha :as s]
-    [clojure.string :as str]
-    [com.wsscode.pathom3.interface.smart-map :as psm]
-    [clojure.walk :as walk]
     [com.fulcrologic.guardrails.core :refer [<- => >def >defn >fdef ? |]]
     [com.wsscode.misc.coll :as coll]
     [com.wsscode.pathom3.connect.indexes :as pci]
     [com.wsscode.pathom3.connect.operation :as pco]
     [com.wsscode.pathom3.interface.eql :as p.eql]
-    [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]))
-
-(>def ::schema map?)
+    [com.wsscode.pathom3.interface.smart-map :as psm]))
 
 (>def ::ident-map
   (s/map-of string?
             (s/map-of string?
                       (s/tuple string? string?))))
 
-(>def ::resolver ::pco/op-name)
-(>def ::prefix string?)
+(>def ::namespace string?)
 
 (def schema-query
   [{:__schema
@@ -41,7 +35,7 @@
         [:name
          {:type [:kind :name {:ofType 3}]}]}]}]}])
 
-(defn prefixed-key [{::keys [prefix]} p s] (keyword (str prefix "." p) s))
+(defn prefixed-key [{::keys [namespace]} p s] (keyword (str namespace "." p) s))
 (defn type-key [env s] (prefixed-key env "types" s))
 (defn interface-key [env s] (prefixed-key env "interfaces" s))
 
@@ -61,39 +55,13 @@
     "INTERFACE" (interface-key env name)
     nil))
 
-(defn type->field-entry
-  "Given a type, return the key to represent it."
-  [env type]
-  (if-let [name (type->field-name env type)]
-    {name {}}
-    {}))
-
-(defn entity-field-key [{::keys [prefix]} entity field]
-  (keyword (str prefix "." entity) field))
-
-(defn index-type [env {:strs [fields name interfaces] :as entry}]
-  {#{(type->field-name env entry)}
-   (-> {}
-       ; fields
-       (into (map #(coll/make-map-entry
-                     (entity-field-key env name (:name %))
-                     (type->field-entry env (:type %))))
-             fields)
-       ; interfaces
-       (into (map #(coll/make-map-entry
-                     (interface-key env (:name %))
-                     {}))
-             interfaces))})
-
-(defn ident-map-entry [env item]
-  (cond
-    (keyword? item) item
-    (vector? item) (entity-field-key env (first item) (second item))))
+(defn entity-field-key [{::keys [namespace]} entity field]
+  (keyword (str namespace "." entity) field))
 
 ; region schema resolvers
 
-(pco/defresolver dynamic-resolver-name [{::keys [prefix]} _]
-  {::gql-dynamic-op-name (symbol prefix "pathom-entry-dynamic-resolver")})
+(pco/defresolver dynamic-resolver-name [{::keys [namespace]} _]
+  {::gql-dynamic-op-name (symbol namespace "pathom-entry-dynamic-resolver")})
 
 (pco/defresolver graphql-schema [{::keys [gql-schema-raw]} _]
   {::gql-schema (get-in gql-schema-raw ["data" "__schema"])})
@@ -169,9 +137,40 @@
   {::gql-type-indexable?
    (contains? #{"OBJECT" "INTERFACE"} gql-type-kind)})
 
-(pco/defresolver type-resolver-op-name [{::keys [prefix]} {::keys [gql-type-name]}]
+; endregion
+
+; region fields
+
+(pco/defresolver field-name [{::keys [gql-field-raw]}]
+  {::gql-field-name (get gql-field-raw "name")})
+
+(pco/defresolver field-qualified-name [env {::keys [gql-field-name gql-type-name]}]
+  {::gql-field-qualified-name
+   (entity-field-key env gql-type-name gql-field-name)})
+
+(pco/defresolver field-type [{::keys [gql-field-raw]}]
+  {::pco/output
+   [{::gql-field-type
+     [::gql-type-name]}]}
+
+  {::gql-field-type
+   {::gql-type-name (type-leaf-name (get gql-field-raw "type"))}})
+
+(pco/defresolver field-type-qualified-name [{::keys [gql-field-type]}]
+  {::pco/input
+   [{::gql-field-type
+     [::gql-type-qualified-name]}]}
+
+  {::gql-field-type-qualified-name
+   (get gql-field-type ::gql-type-qualified-name)})
+
+; endregion
+
+; region pathom resolvers generation
+
+(pco/defresolver type-resolver-op-name [{::keys [namespace]} {::keys [gql-type-name]}]
   {::gql-type-resolver-op-name
-   (symbol prefix (str gql-type-name "-resolver"))})
+   (symbol namespace (str gql-type-name "-resolver"))})
 
 (pco/defresolver type-resolver-input [{::keys [gql-type-qualified-name]}]
   {::gql-type-resolver-input
@@ -200,33 +199,6 @@
     ::pco/input        gql-type-resolver-input
     ::pco/output       gql-type-resolver-output}})
 
-; endregion
-
-; region fields
-
-(pco/defresolver field-name [{::keys [gql-field-raw]}]
-  {::gql-field-name (get gql-field-raw "name")})
-
-(pco/defresolver field-qualified-name [env {::keys [gql-field-name gql-type-name]}]
-  {::gql-field-qualified-name
-   (entity-field-key env gql-type-name gql-field-name)})
-
-(pco/defresolver field-type [{::keys [gql-field-raw]}]
-  {::pco/output
-   [{::gql-field-type
-     [::gql-type-name]}]}
-
-  {::gql-field-type
-   {::gql-type-name (type-leaf-name (get gql-field-raw "type"))}})
-
-(pco/defresolver field-type-qualified-name [{::keys [gql-field-type]}]
-  {::pco/input
-   [{::gql-field-type
-     [::gql-type-qualified-name]}]}
-
-  {::gql-field-type-qualified-name
-   (get gql-field-type ::gql-type-qualified-name)})
-
 (pco/defresolver field-output-entry
   [{::keys [gql-field-qualified-name
             gql-field-type-qualified-name]}]
@@ -236,8 +208,18 @@
   {::gql-field-output-entry
    (if gql-field-type-qualified-name
      {gql-field-qualified-name
-      gql-field-type-qualified-name}
+      [gql-field-type-qualified-name]}
      gql-field-qualified-name)})
+
+(pco/defresolver schema->pathom-indexes [{::keys [gql-indexable-types]}]
+  {::pco/input
+   [{::gql-indexable-types
+     [::gql-type-qualified-name
+      ::gql-type-resolver]}]}
+  {::gql-pathom-indexes
+   (pci/register
+     {::pci/transient-attrs (into #{} (map ::gql-type-qualified-name) gql-indexable-types)}
+     (mapv (comp pco/resolver ::gql-type-resolver) gql-indexable-types))})
 
 ; endregion
 
@@ -269,7 +251,9 @@
          field-qualified-name
          field-type
          field-type-qualified-name
-         field-output-entry])
+         field-output-entry
+
+         schema->pathom-indexes])
       ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
        "gql")))
 
