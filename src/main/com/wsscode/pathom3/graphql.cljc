@@ -8,7 +8,11 @@
     [com.wsscode.pathom3.interface.eql :as p.eql]
     [com.wsscode.pathom3.interface.smart-map :as psm]
     [com.wsscode.promesa.macros :refer [clet]]
-    [edn-query-language.eql-graphql :as eql-gql]))
+    [edn-query-language.eql-graphql :as eql-gql]
+    [com.wsscode.pathom3.format.eql :as pf.eql]
+    [com.wsscode.pathom3.plugin :as p.plugin]
+    [com.wsscode.pathom3.connect.runner :as pcr]
+    [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]))
 
 (>def ::ident-map
   (s/map-of string?
@@ -229,16 +233,60 @@
   {::gql-pathom-type-resolvers
    (mapv ::gql-type-resolver gql-indexable-types)})
 
+(defn convert-back [env response]
+  (let [ast (-> env
+                :com.wsscode.pathom3.connect.planner/node
+                :com.wsscode.pathom3.connect.planner/foreign-ast)]
+    (pf.eql/map-select-ast
+      (p.plugin/register
+        {::p.plugin/id
+         `string-select
+
+         ::pf.eql/wrap-map-select-entry
+         (fn [select-entry]
+           (fn [env source {:keys [key] :as ast}]
+             (if-let [entry (select-entry env source
+                              (-> ast (update :key name) (update :dispatch-key name)))]
+               (coll/make-map-entry key (val entry)))))})
+      (get response "data")
+      ast)))
+
+(defn process-gql-request [{::keys [request] :as schema-env} env input]
+  (let [node     (:com.wsscode.pathom3.connect.planner/node env)
+        ast      (:com.wsscode.pathom3.connect.planner/foreign-ast node)
+        gql      (-> ast eql-gql/ast->graphql)
+        response (request gql)]
+    (pcr/merge-node-stats! env node
+      {::request gql})
+    (convert-back env response)))
+
+(pco/defresolver schema-pathom-main-resolver [env {::keys [gql-dynamic-op-name]}]
+  {::gql-pathom-main-resolver
+   (pco/resolver gql-dynamic-op-name
+     {::pco/dynamic-resolver? true
+      ::pco/cache?            false}
+     (fn [env' input]
+       (process-gql-request env env' input)))})
+
+(pco/defresolver schema-pathom-query-type-entry-resolver
+  [{::keys [gql-query-type]}]
+  {::pco/input [{::gql-query-type [::gql-type-qualified-name]}]}
+  {::gql-pathom-query-type-entry-resolver
+   (pbir/constantly-resolver
+     (get gql-query-type ::gql-type-qualified-name)
+     {})})
+
 (pco/defresolver schema->pathom-indexes
   [{::keys [gql-pathom-type-resolvers
-            gql-pathom-transient-attrs]}]
-  {::pco/input
-   [::gql-pathom-type-resolvers
-    ::gql-pathom-transient-attrs]}
+            gql-pathom-transient-attrs
+            gql-pathom-main-resolver
+            gql-pathom-query-type-entry-resolver]}]
   {::gql-pathom-indexes
-   (pci/register
-     {::pci/transient-attrs gql-pathom-transient-attrs}
-     (mapv pco/resolver gql-pathom-type-resolvers))})
+   (-> {::pci/transient-attrs gql-pathom-transient-attrs}
+       (pci/register
+         [gql-pathom-main-resolver
+          gql-pathom-query-type-entry-resolver
+          (mapv pco/resolver gql-pathom-type-resolvers)]))})
 
 ; endregion
 
@@ -272,12 +320,24 @@
          field-type-qualified-name
          field-output-entry
 
+         schema-pathom-main-resolver
          schema-transient-attrs
          schema-type-resolvers
+         schema-pathom-query-type-entry-resolver
          schema->pathom-indexes])))
 
-(defn load-schema
-  "Returns a smart map ready to answer questions about the GraphQL schema.
+(defn load-schema [config request]
+  (clet [gql-schema-raw (request (eql-gql/query->graphql schema-query))]
+    (psm/smart-map
+      (-> env
+          (merge config)
+          (assoc
+            ::request request
+            ::psm/persistent-cache? true
+            ::gql-schema-raw gql-schema-raw)))))
+
+(defn connect-graphql
+  "Setup a GraphQL connection on the env.
 
   The request must be a function that takes a GraphQL string, executes it (or maybe send
   to a server) and return the response as a Clojure map. The Clojure map should be the
@@ -287,15 +347,11 @@
   Config may include the following keys:
 
   ::namespace (required) - a namespace (as string) to prefix the entries for this graphql"
-  [config request]
-  (clet [gql-schema-raw (request (eql-gql/query->graphql schema-query))]
-    (psm/smart-map
-      (-> env
-          (merge config)
-          (assoc
-            ::request request
-            ::psm/persistent-cache? true
-            ::gql-schema-raw gql-schema-raw)))))
+  [env config request]
+  (clet [env    env
+         schema (load-schema config request)]
+    (-> env
+        (pci/register (::gql-pathom-indexes schema)))))
 
 (comment
   (tap> env)

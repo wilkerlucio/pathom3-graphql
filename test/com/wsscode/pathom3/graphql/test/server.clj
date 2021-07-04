@@ -59,9 +59,9 @@
              :resolve :droid}}})
 
 (defn resolve-hero [context arguments value]
-  (let [{:keys [episode]} arguments]
+  (let [{:keys [id]} arguments]
     (schema/tag-with-type
-      (if (= episode :NEWHOPE)
+      (if (= id 1000)
         {:id          1000
          :name        "Luke"
          :home_planet "Tatooine"
@@ -73,8 +73,8 @@
       :human)))
 
 (defn resolve-human [context arguments value]
-  (let [{:keys [episode]} arguments]
-    (if (= episode :NEWHOPE)
+  (let [{:keys [id]} arguments]
+    (if (= id "1000")
       {:id          1000
        :name        "Luke"
        :home_planet "Tatooine"
@@ -101,16 +101,6 @@
 (defn request [query]
   (json/read-str (json/write-str (execute star-wars-schema query nil nil))))
 
-(defn request2 [query]
-  (-> @(http/request
-         {:url     "https://swapi-graphql.netlify.app/.netlify/functions/index"
-          :method  :post
-          :headers {"Content-Type" "application/json"
-                    "Accept"       "*/*"}
-          :body    (json/write-str {:query query})})
-      :body
-      json/read-str))
-
 (defn load-schema [request]
   (p.gql/load-schema {::p.gql/namespace "acme.stars"} request))
 
@@ -118,8 +108,6 @@
   (load-schema request))
 
 (comment
-  (request2 "{\n  allPeople {\n    people {\n      id\n      name\n    }\n  }\n}")
-
   (load-schema request2)
 
   (-> @(http/request
