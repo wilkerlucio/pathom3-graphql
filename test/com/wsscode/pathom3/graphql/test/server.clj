@@ -85,7 +85,10 @@
        :appears_in  ["EMPIRE" "JEDI"]})))
 
 (defn resolve-droid [context arguments value]
-  )
+  (let [{:keys [id]} arguments]
+    {:id               1
+     :name             "Droid Sample"
+     :primary_function ["Work"]}))
 
 (defn resolve-friends [context arguments value]
   )

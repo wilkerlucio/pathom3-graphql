@@ -1,11 +1,14 @@
 (ns com.wsscode.pathom3.graphql-test
   (:require
     [clojure.test :refer [deftest is are run-tests testing]]
+    [com.wsscode.pathom3.connect.built-in.plugins :as pbip]
     [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
     [com.wsscode.pathom3.connect.indexes :as pci]
     [com.wsscode.pathom3.graphql :as p.gql]
     [com.wsscode.pathom3.graphql.test.server :as t-server]
     [com.wsscode.pathom3.interface.eql :as p.eql]
+    [com.wsscode.pathom3.interface.smart-map :as psm]
+    [com.wsscode.pathom3.plugin :as p.plugin]
     [promesa.core :as p]))
 
 (def schema-config
@@ -95,11 +98,10 @@
 
 (def gql-env
   (-> {}
+      ;(p.plugin/register (pbip/attribute-errors-plugin))
       (p.gql/connect-graphql
         schema-config
-        t-server/request)
-      ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
-       "gql")))
+        t-server/request)))
 
 (deftest integration-tests
   (testing "running query root entry"
@@ -107,16 +109,87 @@
              gql-env
              [{:acme.sw.Query/human
                [:acme.sw.human/id
-                :acme.sw.human/name
-                {:acme.sw.Query/human
-                 [:acme.sw.human/id
-                  :acme.sw.human/name]}]}])
+                :acme.sw.human/name]}])
            {:acme.sw.Query/human
             {:acme.sw.human/id   "2000"
-             :acme.sw.human/name "Lando Calrissian"}}))))
+             :acme.sw.human/name "Lando Calrissian"}})))
+
+  (testing "starting from known root entry mapping"
+    (is (= (p.eql/process
+             gql-env
+             {:acme.sw.human/id "1000"}
+             [:acme.sw.human/id
+              :acme.sw.human/name])
+           {:acme.sw.human/id   "1000"
+            :acme.sw.human/name "Luke"})))
+
+  (testing "can handle multiple idents at once"
+    (is (= (p.eql/process
+             gql-env
+             {:acme.sw.human/id "1000"
+
+              :acme.sw.droid/id "3"}
+             [:acme.sw.human/id
+              :acme.sw.human/name
+
+              :acme.sw.droid/name
+              :acme.sw.droid/primary_function])
+           {:acme.sw.human/id "1000",
+            :acme.sw.human/name "Luke",
+            :acme.sw.droid/name "Droid Sample",
+            :acme.sw.droid/primary_function ["Work"]}))))
 
 (comment
-  (::p.gql/gql-schema schema)
+  (::p.gql/gql-pathom-indexes schema)
+  (::p.gql/gql-ident-map-resolvers schema)
+  (mapv ::p.gql/gql-type-qualified-name (::p.gql/gql-all-types schema))
+  (p.eql/process
+    (-> gql-env
+        ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
+         "gql"))
+    {:acme.sw.human/id "1000"}
+    [:acme.sw.human/id
+     :acme.sw.human/name
+     :acme.sw.human/home_planet])
+
+
+  (p.eql/process
+    (-> gql-env
+        ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
+         "gql"))
+    {:acme.sw.human/id "1000"
+     :acme.sw.droid/id "3"}
+    [:acme.sw.human/id
+     :acme.sw.human/name
+
+     :acme.sw.droid/name
+     :acme.sw.droid/primary_function])
+
+  (p.eql/process
+    (-> gql-env
+        ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
+         "gql"))
+    {:acme.sw.droid/id "3"}
+    [:acme.sw.droid/name])
+
+  (psm/datafy-smart-map schema)
+
+  (-> (p.gql/load-schema* schema-config t-server/request)
+      ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
+       "schema"))
+
+  (-> schema
+      psm/sm-env
+      (assoc :com.wsscode.pathom3.connect.runner/fail-fast? true)
+      (p.plugin/register (pbip/attribute-errors-plugin))
+      (p.eql/process [{::p.gql/gql-ident-map-entries
+                       [::p.gql/gql-ident-map-entry-resolver]}]))
+
+  (-> schema
+      psm/sm-env
+      (p.plugin/register (pbip/attribute-errors-plugin))
+      (p.eql/process
+        [::p.gql/gql-pathom-indexes]))
 
   (-> schema (::p.gql/gql-pathom-indexes)
       ::pci/index-attributes
