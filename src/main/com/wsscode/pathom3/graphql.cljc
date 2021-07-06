@@ -98,6 +98,26 @@
                            (::pcp/run-next <>)
                            (pcp/get-node graph <> ::pco/op-name))))
 
+(defn pull-nested-attribute-resolver
+  "Use this to name a nested value or a collection of nested values."
+  ([join-entry nested-attribute output-attr]
+   (pull-nested-attribute-resolver join-entry nested-attribute output-attr []))
+  ([join-entry nested-attribute output-attr coll]
+   (let [op-name (pbir/attr->sym output-attr "pull")]
+     (pco/resolver op-name
+       {::pco/input
+        [{join-entry
+          [nested-attribute]}]
+
+        ::pco/output
+        [output-attr]}
+       (fn [_ input]
+         (let [result (get input join-entry)]
+           {output-attr
+            (if (coll/collection? result)
+              (into coll (map #(get % nested-attribute)) result)
+              (get result nested-attribute))}))))))
+
 ; region schema resolvers
 
 (pco/defresolver dynamic-resolver-name [{::keys [namespace]} _]
@@ -131,6 +151,34 @@
 
   {::gql-indexable-types
    (filterv ::gql-type-indexable? gql-all-types)})
+
+(pco/defresolver object-types [{::keys [gql-all-types]}]
+  {::pco/input
+   [{::gql-all-types
+     [::gql-type-raw
+      ::gql-type-object?]}]
+
+   ::pco/output
+   [{::gql-object-types
+     [::gql-type-raw
+      ::gql-type-object?]}]}
+
+  {::gql-object-types
+   (filterv ::gql-type-object? gql-all-types)})
+
+(pco/defresolver interface-types [{::keys [gql-all-types]}]
+  {::pco/input
+   [{::gql-all-types
+     [::gql-type-raw
+      ::gql-type-interface?]}]
+
+   ::pco/output
+   [{::gql-interface-types
+     [::gql-type-raw
+      ::gql-type-interface?]}]}
+
+  {::gql-interface-types
+   (filterv ::gql-type-interface? gql-all-types)})
 
 (pco/defresolver query-type [{::keys [gql-schema]}]
   {::gql-query-type {::gql-type-name (get-in gql-schema ["queryType" "name"])}})
@@ -179,9 +227,17 @@
             ::gql-type-name gql-type-name)
      (get gql-type-raw "fields"))})
 
-(pco/defresolver indexable-type? [{::keys [gql-type-kind]}]
+(pco/defresolver type-indexable? [{::keys [gql-type-kind]}]
   {::gql-type-indexable?
    (contains? #{"OBJECT" "INTERFACE"} gql-type-kind)})
+
+(pco/defresolver type-object? [{::keys [gql-type-kind]}]
+  {::gql-type-object?
+   (= "OBJECT" gql-type-kind)})
+
+(pco/defresolver type-interface? [{::keys [gql-type-kind]}]
+  {::gql-type-interface?
+   (= "INTERFACE" gql-type-kind)})
 
 ; endregion
 
@@ -202,13 +258,11 @@
   {::gql-field-type
    {::gql-type-name (type-leaf-name (get gql-field-raw "type"))}})
 
-(pco/defresolver field-type-qualified-name [{::keys [gql-field-type]}]
-  {::pco/input
-   [{::gql-field-type
-     [::gql-type-qualified-name]}]}
-
-  {::gql-field-type-qualified-name
-   (get gql-field-type ::gql-type-qualified-name)})
+(def field-type-qualified-name
+  (pull-nested-attribute-resolver
+    ::gql-field-type
+    ::gql-type-qualified-name
+    ::gql-field-type-qualified-name))
 
 ; endregion
 
@@ -275,12 +329,11 @@
   {::gql-ident-entry-op-name
    (symbol namespace (str gql-field-name "-ident-entry-resolver"))})
 
-(pco/defresolver ident-map->input [{::keys [gql-ident-map-params]}]
-  {::pco/input
-   [{::gql-ident-map-params
-     [::gql-field-qualified-name]}]}
-  {::gql-ident-params-op-input
-   (mapv ::gql-field-qualified-name gql-ident-map-params)})
+(def ident-map->input
+  (pull-nested-attribute-resolver
+    ::gql-ident-map-params
+    ::gql-field-qualified-name
+    ::gql-ident-params-op-input))
 
 (pco/defresolver ident-map->output [{::keys [gql-query-type-field]}]
   {::pco/input
@@ -324,13 +377,11 @@
     ::pco/output  gql-ident-params-op-output
     ::pco/resolve gql-ident-params-op-resolve}})
 
-(pco/defresolver schema-ident-map-resolvers
-  [{::keys [gql-ident-map-entries]}]
-  {::pco/input
-   [{::gql-ident-map-entries
-     [::gql-ident-map-entry-resolver]}]}
-  {::gql-ident-map-resolvers
-   (mapv ::gql-ident-map-entry-resolver gql-ident-map-entries)})
+(def schema-ident-map-resolvers
+  (pull-nested-attribute-resolver
+    ::gql-ident-map-entries
+    ::gql-ident-map-entry-resolver
+    ::gql-ident-map-resolvers))
 
 ; endregion
 
@@ -345,8 +396,7 @@
    [gql-type-qualified-name]})
 
 (pco/defresolver type-resolver-output
-  [{::keys [gql-type-fields
-            gql-type-interfaces]}]
+  [{::keys [gql-type-fields gql-type-interfaces]}]
   {::pco/input
    [{::gql-type-fields
      [::gql-field-output-entry]}
@@ -354,18 +404,7 @@
      [::gql-type-qualified-name]}]}
   {::gql-type-resolver-output
    (-> (mapv ::gql-type-qualified-name gql-type-interfaces)
-       (into (mapv ::gql-field-output-entry gql-type-fields)))})
-
-(pco/defresolver type-resolver
-  [{::keys [gql-type-resolver-op-name
-            gql-type-resolver-input
-            gql-type-resolver-output
-            gql-dynamic-op-name]}]
-  {::gql-type-resolver
-   {::pco/op-name      gql-type-resolver-op-name
-    ::pco/dynamic-name gql-dynamic-op-name
-    ::pco/input        gql-type-resolver-input
-    ::pco/output       gql-type-resolver-output}})
+       (into (map ::gql-field-output-entry) gql-type-fields))})
 
 (pco/defresolver field-output-entry
   [{::keys [gql-field-qualified-name
@@ -379,21 +418,34 @@
       [gql-field-type-qualified-name]}
      gql-field-qualified-name)})
 
-(pco/defresolver schema-transient-attrs [{::keys [gql-indexable-types]}]
-  {::pco/input
-   [::gql-pathom-type-resolvers
-    {::gql-indexable-types
-     [::gql-type-qualified-name
-      ::gql-type-resolver]}]}
-  {::gql-pathom-transient-attrs
-   (into #{} (map ::gql-type-qualified-name) gql-indexable-types)})
+(def schema-transient-attrs
+  (pull-nested-attribute-resolver
+    ::gql-indexable-types
+    ::gql-type-qualified-name
+    ::gql-pathom-transient-attrs
+    #{}))
 
-(pco/defresolver schema-type-resolvers [{::keys [gql-indexable-types]}]
+(pco/defresolver object-type-resolver
+  [{::keys [gql-type-resolver-op-name
+            gql-type-resolver-input
+            gql-type-resolver-output
+            gql-dynamic-op-name]}]
   {::pco/input
-   [{::gql-indexable-types
-     [::gql-type-resolver]}]}
-  {::gql-pathom-type-resolvers
-   (mapv ::gql-type-resolver gql-indexable-types)})
+   [::gql-type-resolver-op-name
+    ::gql-type-resolver-input
+    ::gql-type-resolver-output
+    ::gql-dynamic-op-name]}
+  {::gql-indexable-type-resolver
+   {::pco/op-name      gql-type-resolver-op-name
+    ::pco/dynamic-name gql-dynamic-op-name
+    ::pco/input        gql-type-resolver-input
+    ::pco/output       gql-type-resolver-output}})
+
+(def schema-object-type-resolvers
+  (pull-nested-attribute-resolver
+    ::gql-indexable-types
+    ::gql-indexable-type-resolver
+    ::gql-pathom-indexable-type-resolvers))
 
 (pco/defresolver schema-pathom-main-resolver [env {::keys [gql-dynamic-op-name]}]
   {::gql-pathom-main-resolver
@@ -413,14 +465,14 @@
             gql-pathom-main-resolver
             gql-pathom-query-type-entry-resolver
             gql-ident-map-resolvers
-            gql-pathom-type-resolvers]}]
+            gql-pathom-indexable-type-resolvers]}]
   {::gql-pathom-indexes
    (-> {::pci/transient-attrs gql-pathom-transient-attrs}
        (pci/register
          [gql-pathom-main-resolver
           gql-pathom-query-type-entry-resolver
           (mapv pco/resolver gql-ident-map-resolvers)
-          (mapv pco/resolver gql-pathom-type-resolvers)]))})
+          (mapv pco/resolver gql-pathom-indexable-type-resolvers)]))})
 
 ; endregion
 
@@ -433,8 +485,12 @@
          types-index
          all-types
          indexable-types
+         object-types
+         interface-types
+
          query-type
          query-type-qualified-name
+         query-type-field-raw
 
          type-data-raw
          type-name
@@ -442,20 +498,20 @@
          type-kind
          type-interfaces
          type-fields
-         indexable-type?
+         type-object?
+         type-interface?
+         type-indexable?
 
          type-resolver-op-name
          type-resolver-input
          type-resolver-output
-         type-resolver
+         object-type-resolver
 
          field-name
          field-qualified-name
          field-type
          field-type-qualified-name
          field-output-entry
-
-         query-type-field-raw
 
          ident-map-entries
          ident-map-entry-params
@@ -468,7 +524,7 @@
          schema-ident-map-resolvers
          schema-pathom-main-resolver
          schema-transient-attrs
-         schema-type-resolvers
+         schema-object-type-resolvers
          schema-pathom-query-type-entry-resolver
          schema->pathom-indexes])))
 

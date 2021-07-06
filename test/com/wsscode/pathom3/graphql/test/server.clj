@@ -151,13 +151,13 @@
 
   (-> schema
       (assoc ::p.gql/gql-type-name "human")
-      ::p.gql/gql-type-resolver)
+      ::p.gql/gql-indexable-type-resolver)
 
   (tap> (psm/sm-entity schema))
 
   (->> schema
        ::p.gql/gql-indexable-types
-       (mapv ::p.gql/gql-type-resolver))
+       (mapv ::p.gql/gql-indexable-type-resolver))
 
   (->> schema
        ::p.gql/gql-pathom-indexes)

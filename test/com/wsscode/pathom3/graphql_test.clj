@@ -9,7 +9,8 @@
     [com.wsscode.pathom3.interface.eql :as p.eql]
     [com.wsscode.pathom3.interface.smart-map :as psm]
     [com.wsscode.pathom3.plugin :as p.plugin]
-    [promesa.core :as p]))
+    [promesa.core :as p]
+    [com.wsscode.pathom3.connect.operation :as pco]))
 
 (def schema-config
   {::p.gql/namespace "acme.sw"
@@ -18,6 +19,8 @@
                       "droid" {"id" ["droid" "id"]}}})
 
 (def schema (p.gql/load-schema schema-config t-server/request))
+
+(psm/sm-get-with-stats (psm/sm-update-env schema assoc :com.wsscode.pathom3.connect.runner/omit-run-stats-resolver-io? true) ::p.gql/gql-pathom-indexable-type-resolvers)
 
 (deftest index-schema-test
   (testing "::p.gql/gql-pathom-transient-attrs"
@@ -28,73 +31,73 @@
              :acme.sw.types/droid})))
 
   (testing "type aux resolvers"
-    (is (= (::p.gql/gql-pathom-type-resolvers schema)
-           '[{:com.wsscode.pathom3.connect.operation/op-name      acme.sw/Query-resolver,
-              :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
-              :com.wsscode.pathom3.connect.operation/input        [:acme.sw.types/Query],
-              :com.wsscode.pathom3.connect.operation/output       [{:acme.sw.Query/droid [:acme.sw.types/droid]}
-                                                                   {:acme.sw.Query/hero [:acme.sw.interfaces/character]}
-                                                                   {:acme.sw.Query/human [:acme.sw.types/human]}]}
-             {:com.wsscode.pathom3.connect.operation/op-name      acme.sw/character-resolver,
-              :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
-              :com.wsscode.pathom3.connect.operation/input        [:acme.sw.interfaces/character],
-              :com.wsscode.pathom3.connect.operation/output       [:acme.sw.character/appears_in
-                                                                   {:acme.sw.character/friends [:acme.sw.interfaces/character]}
-                                                                   :acme.sw.character/id
-                                                                   :acme.sw.character/name]}
-             {:com.wsscode.pathom3.connect.operation/op-name      acme.sw/droid-resolver,
-              :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
-              :com.wsscode.pathom3.connect.operation/input        [:acme.sw.types/droid],
-              :com.wsscode.pathom3.connect.operation/output       [:acme.sw.interfaces/character
-                                                                   :acme.sw.droid/appears_in
-                                                                   {:acme.sw.droid/friends [:acme.sw.interfaces/character]}
-                                                                   :acme.sw.droid/id
-                                                                   :acme.sw.droid/name
-                                                                   :acme.sw.droid/primary_function]}
-             {:com.wsscode.pathom3.connect.operation/op-name      acme.sw/human-resolver,
-              :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
-              :com.wsscode.pathom3.connect.operation/input        [:acme.sw.types/human],
-              :com.wsscode.pathom3.connect.operation/output       [:acme.sw.interfaces/character
-                                                                   :acme.sw.human/appears_in
-                                                                   {:acme.sw.human/friends [:acme.sw.interfaces/character]}
-                                                                   :acme.sw.human/home_planet
-                                                                   :acme.sw.human/id
-                                                                   :acme.sw.human/name]}]))
+    (is (= (::p.gql/gql-pathom-indexable-type-resolvers schema)
+           '[{::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
+              ::pco/input        [:acme.sw.types/Query]
+              ::pco/op-name      acme.sw/Query-resolver
+              ::pco/output       [{:acme.sw.Query/droid [:acme.sw.types/droid]}
+                                  {:acme.sw.Query/hero [:acme.sw.interfaces/character]}
+                                  {:acme.sw.Query/human [:acme.sw.types/human]}]}
+             {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
+              ::pco/input        [:acme.sw.interfaces/character]
+              ::pco/op-name      acme.sw/character-resolver
+              ::pco/output       [:acme.sw.character/appears_in
+                                  {:acme.sw.character/friends [:acme.sw.interfaces/character]}
+                                  :acme.sw.character/id
+                                  :acme.sw.character/name]}
+             {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
+              ::pco/input        [:acme.sw.types/droid]
+              ::pco/op-name      acme.sw/droid-resolver
+              ::pco/output       [:acme.sw.interfaces/character
+                                  :acme.sw.droid/appears_in
+                                  {:acme.sw.droid/friends [:acme.sw.interfaces/character]}
+                                  :acme.sw.droid/id
+                                  :acme.sw.droid/name
+                                  :acme.sw.droid/primary_function]}
+             {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
+              ::pco/input        [:acme.sw.types/human]
+              ::pco/op-name      acme.sw/human-resolver
+              ::pco/output       [:acme.sw.interfaces/character
+                                  :acme.sw.human/appears_in
+                                  {:acme.sw.human/friends [:acme.sw.interfaces/character]}
+                                  :acme.sw.human/home_planet
+                                  :acme.sw.human/id
+                                  :acme.sw.human/name]}]))
 
     (testing "load async"
       (is (= (-> @(p.gql/load-schema schema-config #(p/do! (t-server/request %)))
-                 ::p.gql/gql-pathom-type-resolvers)
-             '[{:com.wsscode.pathom3.connect.operation/op-name      acme.sw/Query-resolver,
-                :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
-                :com.wsscode.pathom3.connect.operation/input        [:acme.sw.types/Query],
-                :com.wsscode.pathom3.connect.operation/output       [{:acme.sw.Query/droid [:acme.sw.types/droid]}
-                                                                     {:acme.sw.Query/hero [:acme.sw.interfaces/character]}
-                                                                     {:acme.sw.Query/human [:acme.sw.types/human]}]}
-               {:com.wsscode.pathom3.connect.operation/op-name      acme.sw/character-resolver,
-                :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
-                :com.wsscode.pathom3.connect.operation/input        [:acme.sw.interfaces/character],
-                :com.wsscode.pathom3.connect.operation/output       [:acme.sw.character/appears_in
-                                                                     {:acme.sw.character/friends [:acme.sw.interfaces/character]}
-                                                                     :acme.sw.character/id
-                                                                     :acme.sw.character/name]}
-               {:com.wsscode.pathom3.connect.operation/op-name      acme.sw/droid-resolver,
-                :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
-                :com.wsscode.pathom3.connect.operation/input        [:acme.sw.types/droid],
-                :com.wsscode.pathom3.connect.operation/output       [:acme.sw.interfaces/character
-                                                                     :acme.sw.droid/appears_in
-                                                                     {:acme.sw.droid/friends [:acme.sw.interfaces/character]}
-                                                                     :acme.sw.droid/id
-                                                                     :acme.sw.droid/name
-                                                                     :acme.sw.droid/primary_function]}
-               {:com.wsscode.pathom3.connect.operation/op-name      acme.sw/human-resolver,
-                :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
-                :com.wsscode.pathom3.connect.operation/input        [:acme.sw.types/human],
-                :com.wsscode.pathom3.connect.operation/output       [:acme.sw.interfaces/character
-                                                                     :acme.sw.human/appears_in
-                                                                     {:acme.sw.human/friends [:acme.sw.interfaces/character]}
-                                                                     :acme.sw.human/home_planet
-                                                                     :acme.sw.human/id
-                                                                     :acme.sw.human/name]}])))))
+                 ::p.gql/gql-pathom-indexable-type-resolvers)
+             '[{::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
+                ::pco/input        [:acme.sw.types/Query]
+                ::pco/op-name      acme.sw/Query-resolver
+                ::pco/output       [{:acme.sw.Query/droid [:acme.sw.types/droid]}
+                                    {:acme.sw.Query/hero [:acme.sw.interfaces/character]}
+                                    {:acme.sw.Query/human [:acme.sw.types/human]}]}
+               {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
+                ::pco/input        [:acme.sw.interfaces/character]
+                ::pco/op-name      acme.sw/character-resolver
+                ::pco/output       [:acme.sw.character/appears_in
+                                    {:acme.sw.character/friends [:acme.sw.interfaces/character]}
+                                    :acme.sw.character/id
+                                    :acme.sw.character/name]}
+               {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
+                ::pco/input        [:acme.sw.types/droid]
+                ::pco/op-name      acme.sw/droid-resolver
+                ::pco/output       [:acme.sw.interfaces/character
+                                    :acme.sw.droid/appears_in
+                                    {:acme.sw.droid/friends [:acme.sw.interfaces/character]}
+                                    :acme.sw.droid/id
+                                    :acme.sw.droid/name
+                                    :acme.sw.droid/primary_function]}
+               {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
+                ::pco/input        [:acme.sw.types/human]
+                ::pco/op-name      acme.sw/human-resolver
+                ::pco/output       [:acme.sw.interfaces/character
+                                    :acme.sw.human/appears_in
+                                    {:acme.sw.human/friends [:acme.sw.interfaces/character]}
+                                    :acme.sw.human/home_planet
+                                    :acme.sw.human/id
+                                    :acme.sw.human/name]}])))))
 
 (def gql-env
   (-> {}
@@ -173,6 +176,10 @@
     [:acme.sw.droid/name])
 
   (psm/datafy-smart-map schema)
+
+  (-> (p.gql/load-schema* schema-config t-server/request)
+      (p.eql/process
+        [::p.gql/gql-pathom-indexable-type-resolvers]))
 
   (-> (p.gql/load-schema* schema-config t-server/request)
       ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
