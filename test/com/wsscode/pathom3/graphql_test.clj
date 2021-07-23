@@ -12,7 +12,6 @@
     [promesa.core :as p]
     [com.wsscode.pathom3.connect.operation :as pco]
     [edn-query-language.core :as eql]
-    [edn-query-language.eql-graphql :as eql-gql]
     [com.wsscode.pathom3.format.eql :as pf.eql]
     [com.wsscode.misc.coll :as coll]))
 
@@ -44,6 +43,11 @@
             :test]))))
 
 (deftest index-schema-test
+  (testing "::p.gql/gql-mutation-type"
+    (is (= (p.eql/process-one schema {::p.gql/gql-mutation-type
+                                      [::p.gql/gql-mutation-type-qualified-name]})
+           {:com.wsscode.pathom3.graphql/gql-mutation-type-qualified-name :acme.sw.types/Mutation})))
+
   (testing "::p.gql/gql-interface-usages-index"
     (is (= (p.eql/process-one schema ::p.gql/gql-interface-usages-index)
            {:acme.sw.interfaces/character #{:acme.sw.types/human
@@ -76,8 +80,15 @@
     (is (= (p.eql/process-one schema ::p.gql/gql-pathom-transient-attrs)
            #{:acme.sw.types/human
              :acme.sw.types/Query
+             :acme.sw.types/Mutation
              :acme.sw.interfaces/character
              :acme.sw.types/droid})))
+
+  (testing "::p.gql/gql-pathom-mutations"
+    (is (= (p.eql/process-one schema ::p.gql/gql-pathom-mutations)
+           '[{:com.wsscode.pathom3.connect.operation/op-name      acme.sw.Mutation/create_human,
+              :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
+              :com.wsscode.pathom3.connect.operation/output       [:acme.sw.types/human]}])))
 
   (testing "type aux resolvers"
     (is (= (p.eql/process-one schema ::p.gql/gql-pathom-indexable-type-resolvers)
@@ -249,12 +260,21 @@
 
               :acme.sw.droid/name
               :acme.sw.droid/primary_function])
-           {:acme.sw.human/id "1000",
-            :acme.sw.human/name "Luke",
-            :acme.sw.droid/name "Droid Sample",
-            :acme.sw.droid/primary_function ["Work"]}))))
+           {:acme.sw.human/id               "1000",
+            :acme.sw.human/name             "Luke",
+            :acme.sw.droid/name             "Droid Sample",
+            :acme.sw.droid/primary_function ["Work"]})))
+
+  (testing "call mutation"
+    (is (= (p.eql/process
+             gql-env
+             [{'(acme.sw.Mutation/create_human {:name "Human"})
+               [:acme.sw.human/id
+                :acme.sw.human/name]}])
+           '{acme.sw.Mutation/create_human {:acme.sw.human/id "3000", :acme.sw.human/name "Human"}}))))
 
 (comment
+
   (::p.gql/gql-pathom-indexes schema)
   (::p.gql/gql-ident-map-resolvers schema)
   (mapv ::p.gql/gql-type-qualified-name (::p.gql/gql-all-types schema))

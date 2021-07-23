@@ -56,7 +56,13 @@
      :droid {:type    :droid
              :args    {:id {:type          String
                             :default-value "2001"}}
-             :resolve :droid}}})
+             :resolve :droid}}
+
+    :mutations
+    {:create_human
+     {:type    :human
+      :args    {:name {:type (non-null String)}}
+      :resolve :mutation/create-human}}})
 
 (defn resolve-hero [context arguments value]
   (let [{:keys [id]} arguments]
@@ -90,15 +96,22 @@
      :name             "Droid Sample"
      :primary_function ["Work"]}))
 
-(defn resolve-friends [context arguments value]
+(defn resolve-friends [context args value]
   )
+
+(defn create-human [context args value]
+  {:id          3000
+   :name        (:name args)
+   :home_planet "New one"
+   :appears_in  ["JEDI"]})
 
 (def star-wars-schema
   (-> schema
-      (util/attach-resolvers {:hero    resolve-hero
-                              :human   resolve-human
-                              :droid   resolve-droid
-                              :friends resolve-friends})
+      (util/attach-resolvers {:hero                  resolve-hero
+                              :human                 resolve-human
+                              :droid                 resolve-droid
+                              :friends               resolve-friends
+                              :mutation/create-human create-human})
       schema/compile))
 
 (defn request [query]
@@ -112,6 +125,8 @@
 
 (comment
   (load-schema request2)
+
+  (request (eql-gql/query->graphql p.gql/schema-query) )
 
   (-> @(http/request
          {:url     "https://swapi-graphql.netlify.app/.netlify/functions/index"

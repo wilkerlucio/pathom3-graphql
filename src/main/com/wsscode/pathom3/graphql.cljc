@@ -262,6 +262,18 @@
   {::gql-query-type-qualified-name
    (get gql-query-type ::gql-type-qualified-name)})
 
+(pco/defresolver mutation-type-name [{::keys [gql-schema]}]
+  {::gql-mutation-type-name (get-in gql-schema ["mutationType" "name"])})
+
+(pco/defresolver mutation-type [{::keys [gql-mutation-type-name]}]
+  {::gql-mutation-type {::gql-type-name gql-mutation-type-name}})
+
+(pco/defresolver mutation-type-qualified-name
+  [{::keys [gql-mutation-type]}]
+  {::pco/input [{::gql-mutation-type [::gql-type-qualified-name]}]}
+  {::gql-mutation-type-qualified-name
+   (get gql-mutation-type ::gql-type-qualified-name)})
+
 ; endregion
 
 ; region type data
@@ -300,9 +312,10 @@
             ::gql-type-name gql-type-name)
      (get gql-type-raw "fields"))})
 
-(pco/defresolver type-indexable? [{::keys [gql-type-kind]}]
+(pco/defresolver type-indexable? [{::keys [gql-type-kind gql-type-name gql-mutation-type-name]}]
   {::gql-type-indexable?
-   (contains? #{"OBJECT" "INTERFACE"} gql-type-kind)})
+   (and (contains? #{"OBJECT" "INTERFACE"} gql-type-kind)
+        (not= gql-mutation-type-name gql-type-name))})
 
 (pco/defresolver type-object? [{::keys [gql-type-kind]}]
   {::gql-type-object?
@@ -463,7 +476,7 @@
 
 ; endregion
 
-; region pathom resolvers generation
+; region pathom operations generation
 
 (pco/defresolver type-resolver-op-name [{::keys [namespace]} {::keys [gql-type-name]}]
   {::gql-type-resolver-op-name
@@ -499,8 +512,19 @@
   (pull-nested-attribute-resolver
     ::gql-indexable-types
     ::gql-type-qualified-name
-    ::gql-pathom-transient-attrs
+    ::gql-pathom-schema-transient-attrs
     #{}))
+
+(pco/defresolver schema-all-transient-attrs
+  [{::keys [gql-pathom-schema-transient-attrs
+            gql-mutation-type-qualified-name]}]
+  {::pco/input
+   [::gql-pathom-schema-transient-attrs
+    (pco/? ::gql-mutation-type-qualified-name)]}
+  {::gql-pathom-transient-attrs
+   (cond-> gql-pathom-schema-transient-attrs
+     gql-mutation-type-qualified-name
+     (conj gql-mutation-type-qualified-name))})
 
 (pco/defresolver object-type-resolver
   [{::keys [gql-type-resolver-op-name
@@ -537,19 +561,38 @@
   {::gql-pathom-query-type-entry-resolver
    (pbir/constantly-resolver gql-query-type-qualified-name {})})
 
+(pco/defresolver schema-pathom-mutations
+  [{::keys [gql-dynamic-op-name] :as input}]
+  {::pco/input
+   [::gql-dynamic-op-name
+    {::gql-mutation-type
+     [{::gql-type-fields
+       [::gql-field-qualified-name
+        ::gql-field-type-qualified-name]}]}]}
+  {::gql-pathom-mutations
+   (mapv
+     (fn [{::keys [gql-field-qualified-name
+                   gql-field-type-qualified-name]}]
+       {::pco/op-name      (symbol gql-field-qualified-name)
+        ::pco/dynamic-name gql-dynamic-op-name
+        ::pco/output       [gql-field-type-qualified-name]})
+     (-> input ::gql-mutation-type ::gql-type-fields))})
+
 (pco/defresolver schema->pathom-indexes
   [{::keys [gql-pathom-transient-attrs
             gql-pathom-main-resolver
             gql-pathom-query-type-entry-resolver
             gql-ident-map-resolvers
-            gql-pathom-indexable-type-resolvers]}]
+            gql-pathom-indexable-type-resolvers
+            gql-pathom-mutations]}]
   {::gql-pathom-indexes
    (-> {::pci/transient-attrs gql-pathom-transient-attrs}
        (pci/register
          [gql-pathom-main-resolver
           gql-pathom-query-type-entry-resolver
           (mapv pco/resolver gql-ident-map-resolvers)
-          (mapv pco/resolver gql-pathom-indexable-type-resolvers)]))})
+          (mapv pco/resolver gql-pathom-indexable-type-resolvers)
+          (mapv pco/mutation gql-pathom-mutations)]))})
 
 ; endregion
 
@@ -570,6 +613,10 @@
          query-type
          query-type-qualified-name
          query-type-field-raw
+
+         mutation-type-name
+         mutation-type
+         mutation-type-qualified-name
 
          type-data-raw
          type-name
@@ -605,8 +652,10 @@
          schema-ident-map-resolvers
          schema-pathom-main-resolver
          schema-transient-attrs
+         schema-all-transient-attrs
          schema-object-type-resolvers
          schema-pathom-query-type-entry-resolver
+         schema-pathom-mutations
          schema->pathom-indexes])))
 
 (defn load-schema [config request]
