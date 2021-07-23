@@ -14,7 +14,9 @@
     [com.wsscode.pathom3.plugin :as p.plugin]
     [com.wsscode.promesa.macros :refer [clet]]
     [edn-query-language.eql-graphql :as eql-gql]
-    [clojure.string :as str]))
+    [clojure.string :as str]
+    [edn-query-language.core :as eql]
+    [clojure.walk :as walk]))
 
 (>def ::ident-map
   (s/map-of string?
@@ -67,21 +69,28 @@
   (keyword (str namespace "." entity) field))
 
 (defn map-children
-  [f {:keys [children] :as node}]
-  (cond-> node
-    (seq children)
-    (update :children
-      (fn [children]
-        (into [] (map #(map-children f %)) (f children))))))
+  [f node]
+  (let [union? (eql/union-children? node)
+        node'  (cond-> node (not union?) f)]
+    (cond-> node'
+      (seq (:children node'))
+      (update :children
+        (fn [children]
+          (if union?
+            (update-in children [0 :children]
+              (fn [children]
+                (mapv #(map-children f %) children)))
+            (mapv #(map-children f %) children)))))))
 
 (defn set-union-path
-  [schema-env {:strs [__typename] :as entity}]
-  (cond-> entity
-    __typename
-    (vary-meta assoc ::pf.eql/union-entry-key
-      (p.eql/process-one schema-env {::gql-type-name __typename} ::gql-type-qualified-name))))
+  [schema-env entity]
+  (let [type (and entity (map? entity) (get entity "__typename"))]
+    (cond-> entity
+      type
+      (vary-meta assoc ::pf.eql/union-entry-key
+        (p.eql/process-one schema-env {::gql-type-name type} ::gql-type-qualified-name)))))
 
-(defn convert-back [schema-env env response]
+(defn convert-back [env response]
   (let [ast (-> env
                 ::pcp/node
                 ::pcp/foreign-ast)]
@@ -95,7 +104,7 @@
            (fn [env source {:keys [key] :as ast}]
              (when-let [entry (select-entry env source
                                 (-> ast (update :key name) (update :dispatch-key name)))]
-               (coll/make-map-entry key (set-union-path schema-env (val entry))))))})
+               (coll/make-map-entry key (val entry)))))})
       (get response "data")
       ast)))
 
@@ -109,9 +118,13 @@
 
 (defn prepare-gql-ast [ast]
   (map-children
-    (fn [children]
-      (-> (mapv inject-gql-on children)
-          (conj (pf.eql/prop :__typename))))
+    (fn [{:keys [type] :as node}]
+      (if (= type :union-entry)
+        node
+        (coll/update-if node :children
+          (fn [children]
+            (-> (mapv inject-gql-on children)
+                (conj (pf.eql/prop :__typename)))))))
     ast))
 
 (defn process-gql-request [{::keys [request] :as schema-env} env _input]
@@ -120,12 +133,11 @@
                      ::pcp/foreign-ast
                      prepare-gql-ast)
         gql      (-> ast eql-gql/ast->graphql)
-        response (request gql)]
-    (tap> gql)
+        response (->> (request gql)
+                      (walk/postwalk #(set-union-path schema-env %)))]
     (pcr/merge-node-stats! env node
       {::request gql})
     (convert-back
-      schema-env
       (assoc-in env [::pcp/node ::pcp/foreign-ast] ast)
       response)))
 

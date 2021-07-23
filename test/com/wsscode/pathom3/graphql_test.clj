@@ -12,7 +12,9 @@
     [promesa.core :as p]
     [com.wsscode.pathom3.connect.operation :as pco]
     [edn-query-language.core :as eql]
-    [edn-query-language.eql-graphql :as eql-gql]))
+    [edn-query-language.eql-graphql :as eql-gql]
+    [com.wsscode.pathom3.format.eql :as pf.eql]
+    [com.wsscode.misc.coll :as coll]))
 
 (def schema-config
   {::p.gql/namespace "acme.sw"
@@ -21,6 +23,25 @@
                       "droid" {"id" ["droid" "id"]}}})
 
 (def schema (p.gql/load-schema schema-config t-server/request))
+
+(defn map-children-query [f query]
+  (->> (eql/query->ast query)
+       (p.gql/map-children f)
+       (eql/ast->query)))
+
+(deftest map-children-test
+  (is (= (map-children-query #(coll/update-if % :children conj (pf.eql/prop :test))
+           [:foo {:bar [:baz]}])
+         [:foo {:bar [:baz :test]} :test]))
+
+  (testing "unions"
+    (is (= (map-children-query #(coll/update-if % :children conj (pf.eql/prop :test))
+             [:foo {:bar {:a [:baz]
+                          :b [:other]}}])
+           [:foo
+            {:bar {:a [:baz :test]
+                   :b [:other :test]}}
+            :test]))))
 
 (deftest index-schema-test
   (testing "::p.gql/gql-interface-usages-index"
@@ -154,7 +175,17 @@
                                     {:edn-query-language.eql-graphql/on "human"})
                                   :__typename]}
             {:edn-query-language.eql-graphql/on "Query"})
-           :__typename])))
+           :__typename]))
+
+  (testing "union"
+    (is (= (prepare-gql-query
+             [{:acme.sw.Query/hero
+               {:acme.sw.types/human
+                [:acme.sw.human/name]}}])
+           '[({:acme.sw.Query/hero
+               {:acme.sw.types/human [:acme.sw.human/name]}}
+              {:edn-query-language.eql-graphql/on "Query"})
+             :__typename]))))
 
 (deftest integration-tests
   (testing "running query root entry"
@@ -187,7 +218,16 @@
              {:acme.sw.Query/hero
               {:acme.sw.character/id      "2000",
                :acme.sw.character/name    "Lando Calrissian",
-               :acme.sw.human/home_planet "Socorro"}}))))
+               :acme.sw.human/home_planet "Socorro"}})))
+
+    (testing "union query"
+      (is (= (p.eql/process
+               (pci/register gql-env
+                 (pbir/alias-resolver :acme.sw.human/home_planet :planet))
+               [{:acme.sw.Query/hero
+                 {:acme.sw.types/human
+                  [:planet]}}])
+             {:acme.sw.Query/hero {:planet "Socorro"}}))))
 
   (testing "starting from known root entry mapping"
     (is (= (p.eql/process
