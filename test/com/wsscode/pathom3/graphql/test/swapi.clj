@@ -56,7 +56,12 @@
          (connect-foreign-keys relations :tmdb.Movie/id :swapi.Film/id)])
       (p.gql/connect-graphql
         {::p.gql/namespace "swapi"
-         ::p.gql/ident-map {"film" {"id" ["Film" "id"]}}}
+         ::p.gql/ident-map {"film"     {"id" ["Film" "id"]}
+                            "person"   {"id" ["Person" "id"]}
+                            "planet"   {"id" ["Planet" "id"]}
+                            "species"  {"id" ["Species" "id"]}
+                            "starship" {"id" ["Starship" "id"]}
+                            "vehicle"  {"id" ["Vehicle" "id"]}}}
         request)
       (p.gql/connect-graphql
         {::p.gql/namespace "tmdb"
