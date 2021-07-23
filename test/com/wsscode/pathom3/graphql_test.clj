@@ -10,7 +10,9 @@
     [com.wsscode.pathom3.interface.smart-map :as psm]
     [com.wsscode.pathom3.plugin :as p.plugin]
     [promesa.core :as p]
-    [com.wsscode.pathom3.connect.operation :as pco]))
+    [com.wsscode.pathom3.connect.operation :as pco]
+    [edn-query-language.core :as eql]
+    [edn-query-language.eql-graphql :as eql-gql]))
 
 (def schema-config
   {::p.gql/namespace "acme.sw"
@@ -18,19 +20,46 @@
                       "hero"  {"id" ["character" "id"]}
                       "droid" {"id" ["droid" "id"]}}})
 
-(def schema
-  (psm/smart-map (p.gql/load-schema schema-config t-server/request)))
+(def schema (p.gql/load-schema schema-config t-server/request))
 
 (deftest index-schema-test
+  (testing "::p.gql/gql-interface-usages-index"
+    (is (= (p.eql/process-one schema ::p.gql/gql-interface-usages-index)
+           {:acme.sw.interfaces/character #{:acme.sw.types/human
+                                            :acme.sw.types/droid}})))
+
+  (testing "::p.gql/gql-interface-usages"
+    (is (= (p.eql/process-one schema {::p.gql/gql-type-name "character"} ::p.gql/gql-interface-usages)
+           #{:acme.sw.types/droid :acme.sw.types/human})))
+
+  (testing "::p.gql/gql-type-resolver-output"
+    (is (= (p.eql/process-one schema {::p.gql/gql-type-name "human"}
+             ::p.gql/gql-type-resolver-output)
+           [:acme.sw.human/appears_in
+            {:acme.sw.human/friends [:acme.sw.interfaces/character]}
+            :acme.sw.human/home_planet
+            :acme.sw.human/id
+            :acme.sw.human/name]))
+
+    (testing "interface include links to types"
+      (is (= (p.eql/process-one schema {::p.gql/gql-type-name "character"}
+               ::p.gql/gql-type-resolver-output)
+             [:acme.sw.types/droid
+              :acme.sw.types/human
+              :acme.sw.character/appears_in
+              {:acme.sw.character/friends [:acme.sw.interfaces/character]}
+              :acme.sw.character/id
+              :acme.sw.character/name]))))
+
   (testing "::p.gql/gql-pathom-transient-attrs"
-    (is (= (::p.gql/gql-pathom-transient-attrs schema)
+    (is (= (p.eql/process-one schema ::p.gql/gql-pathom-transient-attrs)
            #{:acme.sw.types/human
              :acme.sw.types/Query
              :acme.sw.interfaces/character
              :acme.sw.types/droid})))
 
   (testing "type aux resolvers"
-    (is (= (::p.gql/gql-pathom-indexable-type-resolvers schema)
+    (is (= (p.eql/process-one schema ::p.gql/gql-pathom-indexable-type-resolvers)
            '[{::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
               ::pco/input        [:acme.sw.types/Query]
               ::pco/op-name      acme.sw/Query-resolver
@@ -40,15 +69,16 @@
              {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
               ::pco/input        [:acme.sw.interfaces/character]
               ::pco/op-name      acme.sw/character-resolver
-              ::pco/output       [:acme.sw.character/appears_in
+              ::pco/output       [:acme.sw.types/droid
+                                  :acme.sw.types/human
+                                  :acme.sw.character/appears_in
                                   {:acme.sw.character/friends [:acme.sw.interfaces/character]}
                                   :acme.sw.character/id
                                   :acme.sw.character/name]}
              {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
               ::pco/input        [:acme.sw.types/droid]
               ::pco/op-name      acme.sw/droid-resolver
-              ::pco/output       [:acme.sw.interfaces/character
-                                  :acme.sw.droid/appears_in
+              ::pco/output       [:acme.sw.droid/appears_in
                                   {:acme.sw.droid/friends [:acme.sw.interfaces/character]}
                                   :acme.sw.droid/id
                                   :acme.sw.droid/name
@@ -56,8 +86,7 @@
              {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
               ::pco/input        [:acme.sw.types/human]
               ::pco/op-name      acme.sw/human-resolver
-              ::pco/output       [:acme.sw.interfaces/character
-                                  :acme.sw.human/appears_in
+              ::pco/output       [:acme.sw.human/appears_in
                                   {:acme.sw.human/friends [:acme.sw.interfaces/character]}
                                   :acme.sw.human/home_planet
                                   :acme.sw.human/id
@@ -76,15 +105,16 @@
                {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
                 ::pco/input        [:acme.sw.interfaces/character]
                 ::pco/op-name      acme.sw/character-resolver
-                ::pco/output       [:acme.sw.character/appears_in
+                ::pco/output       [:acme.sw.types/droid
+                                    :acme.sw.types/human
+                                    :acme.sw.character/appears_in
                                     {:acme.sw.character/friends [:acme.sw.interfaces/character]}
                                     :acme.sw.character/id
                                     :acme.sw.character/name]}
                {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
                 ::pco/input        [:acme.sw.types/droid]
                 ::pco/op-name      acme.sw/droid-resolver
-                ::pco/output       [:acme.sw.interfaces/character
-                                    :acme.sw.droid/appears_in
+                ::pco/output       [:acme.sw.droid/appears_in
                                     {:acme.sw.droid/friends [:acme.sw.interfaces/character]}
                                     :acme.sw.droid/id
                                     :acme.sw.droid/name
@@ -92,8 +122,7 @@
                {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
                 ::pco/input        [:acme.sw.types/human]
                 ::pco/op-name      acme.sw/human-resolver
-                ::pco/output       [:acme.sw.interfaces/character
-                                    :acme.sw.human/appears_in
+                ::pco/output       [:acme.sw.human/appears_in
                                     {:acme.sw.human/friends [:acme.sw.interfaces/character]}
                                     :acme.sw.human/home_planet
                                     :acme.sw.human/id
@@ -105,6 +134,28 @@
         schema-config
         t-server/request)))
 
+(defn prepare-gql-query [query]
+  (-> query
+      eql/query->ast
+      p.gql/prepare-gql-ast
+      eql/ast->query))
+
+(deftest prepare-gql-query-test
+  (is (= (prepare-gql-query
+           [{:acme.sw.Query/hero
+             [:acme.sw.character/id
+              :acme.sw.character/name
+              :acme.sw.human/home_planet]}])
+         '[({:acme.sw.Query/hero [(:acme.sw.character/id
+                                    {:edn-query-language.eql-graphql/on "character"})
+                                  (:acme.sw.character/name
+                                    {:edn-query-language.eql-graphql/on "character"})
+                                  (:acme.sw.human/home_planet
+                                    {:edn-query-language.eql-graphql/on "human"})
+                                  :__typename]}
+            {:edn-query-language.eql-graphql/on "Query"})
+           :__typename])))
+
 (deftest integration-tests
   (testing "running query root entry"
     (is (= (p.eql/process
@@ -115,6 +166,28 @@
            {:acme.sw.Query/human
             {:acme.sw.human/id   "2000"
              :acme.sw.human/name "Lando Calrissian"}})))
+
+  (testing "interface entry"
+    (is (= (p.eql/process
+             gql-env
+             [{:acme.sw.Query/hero
+               [:acme.sw.character/id
+                :acme.sw.character/name]}])
+           {:acme.sw.Query/hero
+            {:acme.sw.character/id   "2000",
+             :acme.sw.character/name "Lando Calrissian"}}))
+
+    (testing "specific type data"
+      (is (= (p.eql/process
+               gql-env
+               [{:acme.sw.Query/hero
+                 [:acme.sw.character/id
+                  :acme.sw.character/name
+                  :acme.sw.human/home_planet]}])
+             {:acme.sw.Query/hero
+              {:acme.sw.character/id      "2000",
+               :acme.sw.character/name    "Lando Calrissian",
+               :acme.sw.human/home_planet "Socorro"}}))))
 
   (testing "starting from known root entry mapping"
     (is (= (p.eql/process

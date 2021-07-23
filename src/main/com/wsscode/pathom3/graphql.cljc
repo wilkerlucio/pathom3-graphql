@@ -13,7 +13,8 @@
     [com.wsscode.pathom3.interface.smart-map :as psm]
     [com.wsscode.pathom3.plugin :as p.plugin]
     [com.wsscode.promesa.macros :refer [clet]]
-    [edn-query-language.eql-graphql :as eql-gql]))
+    [edn-query-language.eql-graphql :as eql-gql]
+    [clojure.string :as str]))
 
 (>def ::ident-map
   (s/map-of string?
@@ -98,15 +99,29 @@
       (get response "data")
       ast)))
 
-(defn process-gql-request [{::keys [request] :as schema-env} env input]
+(defn inject-gql-on [{:keys [dispatch-key] :as node}]
+  (if (keyword? dispatch-key)
+    (let [type-name (-> (namespace dispatch-key)
+                        (str/split #"\.")
+                        last)]
+      (assoc-in node [:params ::eql-gql/on] type-name))
+    node))
+
+(defn prepare-gql-ast [ast]
+  (map-children
+    (fn [children]
+      (-> (mapv inject-gql-on children)
+          (conj (pf.eql/prop :__typename))))
+    ast))
+
+(defn process-gql-request [{::keys [request] :as schema-env} env _input]
   (let [node     (::pcp/node env)
-        ast      (::pcp/foreign-ast node)
-        ast      (map-children
-                   (fn [children]
-                     (conj children (pf.eql/prop :__typename)))
-                   ast)
+        ast      (-> node
+                     ::pcp/foreign-ast
+                     prepare-gql-ast)
         gql      (-> ast eql-gql/ast->graphql)
         response (request gql)]
+    (tap> gql)
     (pcr/merge-node-stats! env node
       {::request gql})
     (convert-back
@@ -202,6 +217,25 @@
   {::gql-interface-types
    (filterv ::gql-type-interface? gql-all-types)})
 
+(pco/defresolver interface-usages-index [{::keys [gql-object-types]}]
+  {::pco/input
+   [{::gql-object-types
+     [::gql-type-qualified-name
+      {::gql-type-interfaces
+       [::gql-type-qualified-name]}]}]}
+  {::gql-interface-usages-index
+   (reduce
+     (fn [idx
+          {::keys    [gql-type-interfaces]
+           type-name ::gql-type-qualified-name}]
+       (reduce
+         (fn [idx {interface-name ::gql-type-qualified-name}]
+           (update idx interface-name coll/sconj type-name))
+         idx
+         gql-type-interfaces))
+     {}
+     gql-object-types)})
+
 (pco/defresolver query-type [{::keys [gql-schema]}]
   {::gql-query-type {::gql-type-name (get-in gql-schema ["queryType" "name"])}})
 
@@ -260,6 +294,11 @@
 (pco/defresolver type-interface? [{::keys [gql-type-kind]}]
   {::gql-type-interface?
    (= "INTERFACE" gql-type-kind)})
+
+(pco/defresolver interface-usages
+  [{::keys [gql-interface-usages-index
+            gql-type-qualified-name]}]
+  {::gql-interface-usages (get gql-interface-usages-index gql-type-qualified-name)})
 
 ; endregion
 
@@ -418,14 +457,13 @@
    [gql-type-qualified-name]})
 
 (pco/defresolver type-resolver-output
-  [{::keys [gql-type-fields gql-type-interfaces]}]
+  [{::keys [gql-type-fields gql-interface-usages]}]
   {::pco/input
-   [{::gql-type-fields
-     [::gql-field-output-entry]}
-    {::gql-type-interfaces
-     [::gql-type-qualified-name]}]}
+   [::gql-interface-usages
+    {::gql-type-fields
+     [::gql-field-output-entry]}]}
   {::gql-type-resolver-output
-   (-> (mapv ::gql-type-qualified-name gql-type-interfaces)
+   (-> (or (some-> gql-interface-usages vec) [])
        (into (map ::gql-field-output-entry) gql-type-fields))})
 
 (pco/defresolver field-output-entry
@@ -510,6 +548,8 @@
          object-types
          interface-types
 
+         interface-usages-index
+
          query-type
          query-type-qualified-name
          query-type-field-raw
@@ -523,6 +563,8 @@
          type-object?
          type-interface?
          type-indexable?
+
+         interface-usages
 
          type-resolver-op-name
          type-resolver-input
@@ -554,6 +596,7 @@
   (clet [gql-schema-raw (request (eql-gql/query->graphql schema-query))]
     (-> env
         (merge config)
+        (pcp/with-plan-cache (atom {}))
         (assoc
           ::pcr/resolver-cache* (atom {})
           ::request request
