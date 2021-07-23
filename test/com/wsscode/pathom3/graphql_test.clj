@@ -18,9 +18,8 @@
                       "hero"  {"id" ["character" "id"]}
                       "droid" {"id" ["droid" "id"]}}})
 
-(def schema (p.gql/load-schema schema-config t-server/request))
-
-(psm/sm-get-with-stats (psm/sm-update-env schema assoc :com.wsscode.pathom3.connect.runner/omit-run-stats-resolver-io? true) ::p.gql/gql-pathom-indexable-type-resolvers)
+(def schema
+  (psm/smart-map (p.gql/load-schema schema-config t-server/request)))
 
 (deftest index-schema-test
   (testing "::p.gql/gql-pathom-transient-attrs"
@@ -66,6 +65,7 @@
 
     (testing "load async"
       (is (= (-> @(p.gql/load-schema schema-config #(p/do! (t-server/request %)))
+                 psm/smart-map
                  ::p.gql/gql-pathom-indexable-type-resolvers)
              '[{::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
                 ::pco/input        [:acme.sw.types/Query]
@@ -101,7 +101,6 @@
 
 (def gql-env
   (-> {}
-      ;(p.plugin/register (pbip/attribute-errors-plugin))
       (p.gql/connect-graphql
         schema-config
         t-server/request)))
@@ -155,6 +154,10 @@
      :acme.sw.human/name
      :acme.sw.human/home_planet])
 
+  (-> schema
+      psm/sm-env
+   ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
+    "debug"))
 
   (p.eql/process
     (-> gql-env
@@ -184,6 +187,8 @@
   (-> (p.gql/load-schema* schema-config t-server/request)
       ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
        "schema"))
+
+  (tap> schema)
 
   (-> schema
       psm/sm-env

@@ -65,10 +65,25 @@
 (defn entity-field-key [{::keys [namespace]} entity field]
   (keyword (str namespace "." entity) field))
 
-(defn convert-back [env response]
+(defn map-children
+  [f {:keys [children] :as node}]
+  (cond-> node
+    (seq children)
+    (update :children
+      (fn [children]
+        (into [] (map #(map-children f %)) (f children))))))
+
+(defn set-union-path
+  [schema-env {:strs [__typename] :as entity}]
+  (cond-> entity
+    __typename
+    (vary-meta assoc ::pf.eql/union-entry-key
+      (p.eql/process-one schema-env {::gql-type-name __typename} ::gql-type-qualified-name))))
+
+(defn convert-back [schema-env env response]
   (let [ast (-> env
-                :com.wsscode.pathom3.connect.planner/node
-                :com.wsscode.pathom3.connect.planner/foreign-ast)]
+                ::pcp/node
+                ::pcp/foreign-ast)]
     (pf.eql/map-select-ast
       (p.plugin/register
         {::p.plugin/id
@@ -77,20 +92,27 @@
          ::pf.eql/wrap-map-select-entry
          (fn [select-entry]
            (fn [env source {:keys [key] :as ast}]
-             (if-let [entry (select-entry env source
-                              (-> ast (update :key name) (update :dispatch-key name)))]
-               (coll/make-map-entry key (val entry)))))})
+             (when-let [entry (select-entry env source
+                                (-> ast (update :key name) (update :dispatch-key name)))]
+               (coll/make-map-entry key (set-union-path schema-env (val entry))))))})
       (get response "data")
       ast)))
 
-(defn process-gql-request [{::keys [request]} env input]
-  (let [node     (:com.wsscode.pathom3.connect.planner/node env)
-        ast      (:com.wsscode.pathom3.connect.planner/foreign-ast node)
+(defn process-gql-request [{::keys [request] :as schema-env} env input]
+  (let [node     (::pcp/node env)
+        ast      (::pcp/foreign-ast node)
+        ast      (map-children
+                   (fn [children]
+                     (conj children (pf.eql/prop :__typename)))
+                   ast)
         gql      (-> ast eql-gql/ast->graphql)
         response (request gql)]
     (pcr/merge-node-stats! env node
       {::request gql})
-    (convert-back env response)))
+    (convert-back
+      schema-env
+      (assoc-in env [::pcp/node ::pcp/foreign-ast] ast)
+      response)))
 
 (defn next-is-expected-dynamic?
   [{::pcp/keys [node graph]} gql-dynamic-op-name]
@@ -528,22 +550,14 @@
          schema-pathom-query-type-entry-resolver
          schema->pathom-indexes])))
 
-(defn load-schema* [config request]
+(defn load-schema [config request]
   (clet [gql-schema-raw (request (eql-gql/query->graphql schema-query))]
     (-> env
         (merge config)
         (assoc
-          ::pcr/fail-fast? true
+          ::pcr/resolver-cache* (atom {})
           ::request request
           ::gql-schema-raw gql-schema-raw))))
-
-(defn load-schema [config request]
-  (clet [env' (load-schema* config request)]
-    (psm/smart-map
-      (-> env'
-          (merge config)
-          (assoc
-            ::psm/persistent-cache? true)))))
 
 (defn connect-graphql
   "Setup a GraphQL connection on the env.
@@ -557,10 +571,10 @@
 
   ::namespace (required) - a namespace (as string) to prefix the entries for this graphql"
   [env config request]
-  (clet [env    env
-         schema (load-schema config request)]
+  (clet [env        env
+         schema-env (load-schema config request)]
     (-> env
-        (pci/register (::gql-pathom-indexes schema)))))
+        (pci/register (p.eql/process-one schema-env ::gql-pathom-indexes)))))
 
 (comment
   (tap> env)

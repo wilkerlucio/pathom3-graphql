@@ -1,12 +1,13 @@
 (ns com.wsscode.pathom3.graphql.test.swapi
-  (:require [clojure.test :refer :all]
-            [org.httpkit.client :as http]
-            [clojure.data.json :as json]
-            [com.wsscode.pathom3.graphql :as p.gql]
-            [com.wsscode.pathom3.interface.eql :as p.eql]
-            [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
-            [com.wsscode.misc.coll :as coll]
-            [com.wsscode.pathom3.connect.indexes :as pci]))
+  (:require
+    [clojure.data.json :as json]
+    [com.wsscode.misc.coll :as coll]
+    [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
+    [com.wsscode.pathom3.connect.indexes :as pci]
+    [com.wsscode.pathom3.connect.operation :as pco]
+    [com.wsscode.pathom3.graphql :as p.gql]
+    [com.wsscode.pathom3.interface.eql :as p.eql]
+    [org.httpkit.client :as http]))
 
 (defn request [query]
   (-> @(http/request
@@ -55,7 +56,8 @@
         [(connect-foreign-keys relations :swapi.Film/id :tmdb.Movie/id)
          (connect-foreign-keys relations :tmdb.Movie/id :swapi.Film/id)])
       (p.gql/connect-graphql
-        {::p.gql/namespace "swapi"}
+        {::p.gql/namespace "swapi"
+         ::p.gql/ident-map {"film" {"id" ["Film" "id"]}}}
         request)
       (p.gql/connect-graphql
         {::p.gql/namespace "tmdb"
@@ -67,7 +69,7 @@
 (comment
   (p.eql/process
     env
-    {}
+    {:x {}}
     [{:swapi.Root/allFilms
       [{:swapi.FilmsConnection/films
         [:swapi.Film/director
@@ -75,8 +77,14 @@
 
   (p.eql/process
     env
+    [{:swapi.Root/allFilms
+      [{:swapi.FilmsConnection/films
+        [:swapi.Film/title]}]}])
+
+  (p.eql/process
+    env
     {}
-    [{(:tmdb.Query/node {:tmdb.Node/id "MDoxODk1"})
+    [{'(:tmdb.Query/node {:tmdb.Node/id "MDoxODk1"})
       {:tmdb.types/Movie
        [:tmdb.Movie/title]}}]))
 

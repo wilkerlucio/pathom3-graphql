@@ -168,4 +168,7 @@
        ::p.gql/gql-pathom-indexes)
 
   (json/read-str (request (eql-gql/query->graphql p.gql/schema-query)))
-  (request "{\n  human {\n    id\n    name\n    friends {\n      name\n    }\n  }\n}"))
+  (request "{\n  human {\n    id\n    name\n    friends {\n      name\n    }\n  }\n}")
+
+  (request "query {\n  human {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n"
+    ))
