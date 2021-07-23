@@ -87,7 +87,7 @@
     (cond-> entity
       type
       (vary-meta assoc ::pf.eql/union-entry-key
-        (p.eql/process-one schema-env {::gql-type-name type} ::gql-type-qualified-name)))))
+                 (p.eql/process-one schema-env {::gql-type-name type} ::gql-type-qualified-name)))))
 
 (defn convert-back [env response]
   (let [ast (-> env
@@ -102,7 +102,7 @@
          (fn [select-entry]
            (fn [env source {:keys [key] :as ast}]
              (when-let [entry (select-entry env source
-                                (-> ast (update :key name) (update :dispatch-key name)))]
+                                            (-> ast (update :key name) (update :dispatch-key name)))]
                (coll/make-map-entry key (val entry)))))})
       (get response "data")
       ast)))
@@ -121,9 +121,9 @@
       (if (= type :union-entry)
         node
         (coll/update-if node :children
-          (fn [children]
-            (-> (mapv inject-gql-on children)
-                (conj (pf.eql/prop :__typename)))))))
+                        (fn [children]
+                          (-> (mapv inject-gql-on children)
+                              (conj (pf.eql/prop :__typename)))))))
     ast))
 
 (defn format-error [{:strs [message path]}]
@@ -171,7 +171,7 @@
               (into coll (map #(get % nested-attribute)) result)
               (get result nested-attribute))}))))))
 
-; region schema resolvers
+;; region schema resolvers
 
 (pco/defresolver dynamic-resolver-name [{::keys [namespace]} _]
   {::gql-dynamic-op-name (symbol namespace "pathom-entry-dynamic-resolver")})
@@ -182,7 +182,7 @@
 (pco/defresolver types-index [{::keys [gql-schema]}]
   {::gql-types-index
    (coll/index-by #(get % "name")
-     (get gql-schema "types"))})
+                  (get gql-schema "types"))})
 
 (pco/defresolver all-types [{::keys [gql-schema]}]
   {::pco/output
@@ -273,9 +273,9 @@
   {::gql-mutation-type-qualified-name
    (get gql-mutation-type ::gql-type-qualified-name)})
 
-; endregion
+;; endregion
 
-; region type data
+;; region type data
 
 (pco/defresolver type-data-raw [{::keys [gql-types-index gql-type-name]}]
   {::gql-type-raw (get gql-types-index gql-type-name)})
@@ -329,9 +329,9 @@
             gql-type-qualified-name]}]
   {::gql-interface-usages (get gql-interface-usages-index gql-type-qualified-name)})
 
-; endregion
+;; endregion
 
-; region fields
+;; region fields
 
 (pco/defresolver field-name [{::keys [gql-field-raw]}]
   {::gql-field-name (get gql-field-raw "name")})
@@ -354,9 +354,9 @@
     ::gql-type-qualified-name
     ::gql-field-type-qualified-name))
 
-; endregion
+;; endregion
 
-; region query type
+;; region query type
 
 (pco/defresolver query-type-field-raw
   [{::keys [gql-field-name
@@ -381,9 +381,9 @@
               ::gql-type-fields))
        (assoc ::gql-type-name (::gql-type-name gql-query-type)))})
 
-; endregion
+;; endregion
 
-; region ident map
+;; region ident map
 
 (pco/defresolver ident-map-entries
   [{::keys [ident-map]} {::keys [gql-query-type]}]
@@ -439,7 +439,7 @@
    (fn [{::pcp/keys [node] :as env'} input]
      (if-not (next-is-expected-dynamic? env' gql-dynamic-op-name)
        (throw (ex-info "Unexpected node structure. Please report this issue."
-                {})))
+                       {})))
      (let [{::pcp/keys [node graph] :as env'} (update-in env' [::pcp/graph
                                                                ::pcp/nodes
                                                                (::pcp/run-next node)
@@ -452,8 +452,8 @@
                                                        :children children)])))
            next-node (pcp/get-node graph (::pcp/run-next node))
            response  (process-gql-request env
-                       (-> env' (assoc ::pcp/node next-node))
-                       input)]
+                                          (-> env' (assoc ::pcp/node next-node))
+                                          input)]
        (get response gql-field-qualified-name)))})
 
 (pco/defresolver ident-map->resolver
@@ -473,9 +473,9 @@
     ::gql-ident-map-entry-resolver
     ::gql-ident-map-resolvers))
 
-; endregion
+;; endregion
 
-; region pathom operations generation
+;; region pathom operations generation
 
 (pco/defresolver type-resolver-op-name [{::keys [namespace]} {::keys [gql-type-name]}]
   {::gql-type-resolver-op-name
@@ -593,7 +593,7 @@
           (mapv pco/resolver gql-pathom-indexable-type-resolvers)
           (mapv pco/mutation gql-pathom-mutations)]))})
 
-; endregion
+;; endregion
 
 (def env
   (-> {}

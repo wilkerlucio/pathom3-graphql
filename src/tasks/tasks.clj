@@ -11,7 +11,7 @@
     (java.time.format
       DateTimeFormatter)))
 
-; region helpers
+;; region helpers
 
 (defn check [p]
   (try
@@ -40,9 +40,9 @@
 
 (def clojure (partial sh :clojure))
 
-; endregion
+;; endregion
 
-; region cljstyle
+;; region cljstyle
 
 (defn native-cljstyle? []
   (-> (sh-silent :which "cljstyle") deref :exit zero?))
@@ -54,18 +54,18 @@
     (apply cljstyle-native args)
     (apply clojure "-Sdeps" "{:deps {mvxcvi/cljstyle {:mvn/version \"0.15.0\"}}}" "-m" "cljstyle.main" args)))
 
-; endregion
+;; endregion
 
-; region clj-kondo
+;; region clj-kondo
 
 (def clj-kondo (partial sh :clj-kondo))
 
 (defn clj-kondo-lint [paths]
   (apply clj-kondo "--lint" paths))
 
-; endregion
+;; endregion
 
-; region git
+;; region git
 
 (defn modified-files
   "Return a list of the files that are part of the current commit.
@@ -80,9 +80,9 @@
   (let [hash (sh-out "git" "hash-object" "-w" path)]
     (sh-silent :git "update-index" "--add" "--cacheinfo" "100644" hash path)))
 
-; endregion
+;; endregion
 
-; region pre commit action to validate and format
+;; region pre commit action to validate and format
 
 (defn clojure-source? [path]
   (re-find #"\.(clj|cljs|cljc)$" path))
@@ -100,7 +100,7 @@
   (let [paths (->> (modified-files)
                    (filter clojure-source?))]
     (when (seq paths)
-      ; fix format
+      ;; fix format
       (apply cljstyle "fix" paths)
 
       (doseq [path paths]
@@ -108,9 +108,9 @@
 
       (clj-kondo-lint paths))))
 
-; endregion
+;; endregion
 
-; region git
+;; region git
 
 (defn git-tags []
   (into #{} (str/split-lines (sh-out "git" "tag" "-l"))))
@@ -121,9 +121,9 @@
 (defn push-with-tags []
   (sh "git" "push" "--follow-tags"))
 
-; endregion
+;; endregion
 
-; region pom.xml
+;; region pom.xml
 
 (defn update-child-tag [element tag f]
   (update element :content
@@ -143,9 +143,9 @@
       (xml/emit-str)
       (->> (spit "pom.xml"))))
 
-; endregion
+;; endregion
 
-; region artifact
+;; region artifact
 
 (defn current-version []
   (if (fs/exists? "VERSION")
@@ -196,4 +196,4 @@
     (spit "VERSION" version)
     version))
 
-; endregion
+;; endregion

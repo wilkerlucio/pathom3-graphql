@@ -94,8 +94,7 @@
      :name             "Droid Sample"
      :primary_function ["Work"]}))
 
-(defn resolve-friends [_context _args _value]
-  )
+(defn resolve-friends [_context _args _value])
 
 (defn create-human [_context args _value]
   {:id          3000
