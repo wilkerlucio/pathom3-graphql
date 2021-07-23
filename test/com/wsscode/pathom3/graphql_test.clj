@@ -28,13 +28,13 @@
 
 (deftest map-children-test
   (is (= (map-children-query #(coll/update-if % :children conj (pf.eql/prop :test))
-           [:foo {:bar [:baz]}])
+                             [:foo {:bar [:baz]}])
          [:foo {:bar [:baz :test]} :test]))
 
   (testing "unions"
     (is (= (map-children-query #(coll/update-if % :children conj (pf.eql/prop :test))
-             [:foo {:bar {:a [:baz]
-                          :b [:other]}}])
+                               [:foo {:bar {:a [:baz]
+                                            :b [:other]}}])
            [:foo
             {:bar {:a [:baz :test]
                    :b [:other :test]}}
@@ -57,7 +57,7 @@
 
   (testing "::p.gql/gql-type-resolver-output"
     (is (= (p.eql/process-one schema {::p.gql/gql-type-name "human"}
-             ::p.gql/gql-type-resolver-output)
+                              ::p.gql/gql-type-resolver-output)
            [:acme.sw.human/appears_in
             {:acme.sw.human/friends [:acme.sw.interfaces/character]}
             :acme.sw.human/home_planet
@@ -66,7 +66,7 @@
 
     (testing "interface include links to types"
       (is (= (p.eql/process-one schema {::p.gql/gql-type-name "character"}
-               ::p.gql/gql-type-resolver-output)
+                                ::p.gql/gql-type-resolver-output)
              [:acme.sw.types/droid
               :acme.sw.types/human
               :acme.sw.character/appears_in
@@ -232,7 +232,7 @@
     (testing "union query"
       (is (= (p.eql/process
                (pci/register gql-env
-                 (pbir/alias-resolver :acme.sw.human/home_planet :planet))
+                             (pbir/alias-resolver :acme.sw.human/home_planet :planet))
                [{:acme.sw.Query/hero
                  {:acme.sw.types/human
                   [:planet]}}])
