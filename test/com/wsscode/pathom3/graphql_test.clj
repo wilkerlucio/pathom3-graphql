@@ -1,19 +1,17 @@
 (ns com.wsscode.pathom3.graphql-test
   (:require
     [clojure.test :refer [deftest is are run-tests testing]]
-    [com.wsscode.pathom3.connect.built-in.plugins :as pbip]
+    [com.wsscode.misc.coll :as coll]
     [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
     [com.wsscode.pathom3.connect.indexes :as pci]
+    [com.wsscode.pathom3.connect.operation :as pco]
+    [com.wsscode.pathom3.format.eql :as pf.eql]
     [com.wsscode.pathom3.graphql :as p.gql]
     [com.wsscode.pathom3.graphql.test.server :as t-server]
     [com.wsscode.pathom3.interface.eql :as p.eql]
     [com.wsscode.pathom3.interface.smart-map :as psm]
-    [com.wsscode.pathom3.plugin :as p.plugin]
-    [promesa.core :as p]
-    [com.wsscode.pathom3.connect.operation :as pco]
     [edn-query-language.core :as eql]
-    [com.wsscode.pathom3.format.eql :as pf.eql]
-    [com.wsscode.misc.coll :as coll]))
+    [promesa.core :as p]))
 
 (def schema-config
   {::p.gql/namespace "acme.sw"
@@ -313,26 +311,16 @@
 
   (psm/datafy-smart-map schema)
 
-  (-> (p.gql/load-schema* schema-config t-server/request)
-      (p.eql/process
-        [::p.gql/gql-pathom-indexable-type-resolvers]))
-
-  (-> (p.gql/load-schema* schema-config t-server/request)
-      ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
-       "schema"))
-
   (tap> schema)
 
   (-> schema
       psm/sm-env
       (assoc :com.wsscode.pathom3.connect.runner/fail-fast? true)
-      (p.plugin/register (pbip/attribute-errors-plugin))
       (p.eql/process [{::p.gql/gql-ident-map-entries
                        [::p.gql/gql-ident-map-entry-resolver]}]))
 
   (-> schema
       psm/sm-env
-      (p.plugin/register (pbip/attribute-errors-plugin))
       (p.eql/process
         [::p.gql/gql-pathom-indexes]))
 

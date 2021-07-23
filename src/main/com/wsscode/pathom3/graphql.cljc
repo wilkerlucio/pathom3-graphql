@@ -1,6 +1,8 @@
 (ns com.wsscode.pathom3.graphql
   (:require
     [clojure.spec.alpha :as s]
+    [clojure.string :as str]
+    [clojure.walk :as walk]
     [com.fulcrologic.guardrails.core :refer [<- => >def >defn >fdef ? |]]
     [com.wsscode.misc.coll :as coll]
     [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
@@ -10,13 +12,10 @@
     [com.wsscode.pathom3.connect.runner :as pcr]
     [com.wsscode.pathom3.format.eql :as pf.eql]
     [com.wsscode.pathom3.interface.eql :as p.eql]
-    [com.wsscode.pathom3.interface.smart-map :as psm]
     [com.wsscode.pathom3.plugin :as p.plugin]
     [com.wsscode.promesa.macros :refer [clet]]
-    [edn-query-language.eql-graphql :as eql-gql]
-    [clojure.string :as str]
     [edn-query-language.core :as eql]
-    [clojure.walk :as walk]))
+    [edn-query-language.eql-graphql :as eql-gql]))
 
 (>def ::ident-map
   (s/map-of string?

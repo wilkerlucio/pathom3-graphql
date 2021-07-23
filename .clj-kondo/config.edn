@@ -1,4 +1,4 @@
-{:config-paths []
+{:config-paths ["com.wsscode/pathom3"]
  :lint-as      {com.fulcrologic.guardrails.core/>def    clojure.spec.alpha/def
                 com.fulcrologic.guardrails.core/>defn   clojure.core/defn}
  :linters      {:unsorted-required-namespaces {:level :warning}

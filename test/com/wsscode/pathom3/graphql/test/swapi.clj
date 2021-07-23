@@ -4,7 +4,6 @@
     [com.wsscode.misc.coll :as coll]
     [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
     [com.wsscode.pathom3.connect.indexes :as pci]
-    [com.wsscode.pathom3.connect.operation :as pco]
     [com.wsscode.pathom3.graphql :as p.gql]
     [com.wsscode.pathom3.interface.eql :as p.eql]
     [org.httpkit.client :as http]))
@@ -106,6 +105,4 @@
        (coll/map-vals :tmdb.Movie/id))
 
   (->> (coll/index-by :tmdb.Movie/id relations)
-       (coll/map-vals :swapi.Film/id))
-
-  (pbir/single-attr-resolver))
+       (coll/map-vals :swapi.Film/id)))

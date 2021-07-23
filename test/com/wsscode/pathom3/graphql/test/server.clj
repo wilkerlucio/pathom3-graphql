@@ -1,15 +1,13 @@
 (ns com.wsscode.pathom3.graphql.test.server
-  (:require [clojure.data.json :as json]
-            [org.httpkit.client :as http]
-            [edn-query-language.eql-graphql :as eql-gql]
-            [com.wsscode.pathom3.interface.smart-map :as psm]
-            [com.wsscode.pathom3.graphql :as p.gql]
-            [com.walmartlabs.lacinia :refer [execute]]
-            [com.walmartlabs.lacinia.schema :as schema]
-            [com.walmartlabs.lacinia.util :as util]
-            [com.wsscode.pathom3.interface.eql :as p.eql]
-            [com.wsscode.pathom3.connect.operation :as pco]
-            [com.wsscode.pathom3.connect.indexes :as pci]))
+  (:require
+    [clojure.data.json :as json]
+    [com.walmartlabs.lacinia :refer [execute]]
+    [com.walmartlabs.lacinia.schema :as schema]
+    [com.walmartlabs.lacinia.util :as util]
+    [com.wsscode.pathom3.graphql :as p.gql]
+    [com.wsscode.pathom3.interface.smart-map :as psm]
+    [edn-query-language.eql-graphql :as eql-gql]
+    [org.httpkit.client :as http]))
 
 (def schema
   '{:enums
@@ -64,7 +62,7 @@
       :args    {:name {:type (non-null String)}}
       :resolve :mutation/create-human}}})
 
-(defn resolve-hero [context arguments value]
+(defn resolve-hero [_ arguments _]
   (let [{:keys [id]} arguments]
     (schema/tag-with-type
       (if (= id 1000)
@@ -78,7 +76,7 @@
          :appears_in  ["EMPIRE" "JEDI"]})
       :human)))
 
-(defn resolve-human [context arguments value]
+(defn resolve-human [_context arguments _value]
   (let [{:keys [id]} arguments]
     (if (= id "1000")
       {:id          1000
@@ -90,16 +88,16 @@
        :home_planet "Socorro"
        :appears_in  ["EMPIRE" "JEDI"]})))
 
-(defn resolve-droid [context arguments value]
-  (let [{:keys [id]} arguments]
+(defn resolve-droid [_context arguments _value]
+  (let [_ arguments]
     {:id               1
      :name             "Droid Sample"
      :primary_function ["Work"]}))
 
-(defn resolve-friends [context args value]
+(defn resolve-friends [_context _args _value]
   )
 
-(defn create-human [context args value]
+(defn create-human [_context args _value]
   {:id          3000
    :name        (:name args)
    :home_planet "New one"
@@ -120,11 +118,7 @@
 (defn load-schema [request]
   (p.gql/load-schema {::p.gql/namespace "acme.stars"} request))
 
-(def schema
-  (load-schema request))
-
 (comment
-  (load-schema request2)
 
   (request (eql-gql/query->graphql p.gql/schema-query) )
 
@@ -175,11 +169,6 @@
        (mapv ::p.gql/gql-indexable-type-resolver))
 
   (->> schema
-       ::p.gql/gql-pathom-indexes)
-
-  (tap> (load-schema request2))
-
-  (->> (load-schema request2)
        ::p.gql/gql-pathom-indexes)
 
   (json/read-str (request (eql-gql/query->graphql p.gql/schema-query)))
