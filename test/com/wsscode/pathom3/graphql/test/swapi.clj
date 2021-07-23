@@ -61,7 +61,7 @@
         request)
       (p.gql/connect-graphql
         {::p.gql/namespace "tmdb"
-         ::p.gql/ident-map {"node" {"id" ["Node" "id"]}}}
+         ::p.gql/ident-map {"node" {"id" ["Movie" "id"]}}}
         request-tmdb)
       ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
        "swapi")))
@@ -80,6 +80,19 @@
     [{:swapi.Root/allFilms
       [{:swapi.FilmsConnection/films
         [:swapi.Film/title]}]}])
+
+  (p.eql/process
+    env
+    {:swapi.Film/id "ZmlsbXM6Mg=="}
+    [:swapi.Film/title
+     :tmdb.Movie/budget])
+
+  (p.eql/process
+    env
+    [{:swapi.Root/allFilms
+      [{:swapi.FilmsConnection/films
+        [:swapi.Film/title
+         :tmdb.Movie/budget]}]}])
 
   (p.eql/process
     env

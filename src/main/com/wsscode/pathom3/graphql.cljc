@@ -127,6 +127,9 @@
                 (conj (pf.eql/prop :__typename)))))))
     ast))
 
+(defn format-error [{:strs [message path]}]
+  (str message " at path " (pr-str path)))
+
 (defn process-gql-request [{::keys [request] :as schema-env} env _input]
   (let [node     (::pcp/node env)
         ast      (-> node
@@ -137,9 +140,11 @@
                       (walk/postwalk #(set-union-path schema-env %)))]
     (pcr/merge-node-stats! env node
       {::request gql})
-    (convert-back
-      (assoc-in env [::pcp/node ::pcp/foreign-ast] ast)
-      response)))
+    (if-let [errors (get response "errors")]
+      (throw (ex-info (str "GraphQL Error: " (format-error (first errors))) {:errors errors}))
+      (convert-back
+        (assoc-in env [::pcp/node ::pcp/foreign-ast] ast)
+        response))))
 
 (defn next-is-expected-dynamic?
   [{::pcp/keys [node graph]} gql-dynamic-op-name]
