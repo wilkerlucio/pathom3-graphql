@@ -14,10 +14,7 @@
     [promesa.core :as p]))
 
 (def schema-config
-  {::p.gql/namespace "acme.sw"
-   ::p.gql/ident-map {"human" {"id" ["human" "id"]}
-                      "hero"  {"id" ["character" "id"]}
-                      "droid" {"id" ["droid" "id"]}}})
+  {::p.gql/namespace "acme.sw"})
 
 (def schema (p.gql/load-schema schema-config t-server/request))
 
