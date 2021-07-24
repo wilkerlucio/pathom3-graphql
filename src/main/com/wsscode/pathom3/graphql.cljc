@@ -628,8 +628,7 @@
      [{::gql-argument-type
        [(<< ::gql-type-name :arg-type)]}]}
     {(pco/? ::gql-field-type)
-     [::gql-type-name
-      {::gql-type-id-field
+     [{::gql-type-id-field
        [{::gql-field-type
          [(<< ::gql-type-name :field-type)]}]}]}]
 
