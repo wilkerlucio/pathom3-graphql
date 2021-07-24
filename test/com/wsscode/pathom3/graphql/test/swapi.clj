@@ -65,19 +65,21 @@
         request)
       (p.gql/connect-graphql
         {::p.gql/namespace "tmdb"
-         ::p.gql/ident-map {"node" {"id" ["Movie" "id"]}}}
+         ::p.gql/ident-map {"node" {"id" ["Node" "id"]}}}
         request-tmdb)
+      (pci/register
+        [(pbir/alias-resolver :tmdb.Movie/id :tmdb.Node/id)
+         (pbir/alias-resolver :tmdb.Movie/budget :budget)])
       ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
        "swapi")))
 
 (comment
   (p.eql/process
     env
-    {:x {}}
     [{:swapi.Root/allFilms
       [{:swapi.FilmsConnection/films
-        [:swapi.Film/director
-         :swapi.Film/title]}]}])
+        [:swapi.Film/title
+         :budget]}]}])
 
   (p.eql/process
     env

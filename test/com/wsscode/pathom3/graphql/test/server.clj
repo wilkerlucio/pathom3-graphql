@@ -42,19 +42,22 @@
                    :home_planet {:type String}}}}
 
     :queries
-    {:hero  {:type    (non-null :character)
-             :args    {:episode {:type :episode}}
-             :resolve :hero}
+    {:hero      {:type    (non-null :character)
+                 :args    {:episode {:type :episode}}
+                 :resolve :hero}
 
-     :human {:type    (non-null :human)
-             :args    {:id {:type          String
-                            :default-value "1001"}}
-             :resolve :human}
+     :human     {:type    (non-null :human)
+                 :args    {:id {:type          String
+                                :default-value "1001"}}
+                 :resolve :human}
 
-     :droid {:type    :droid
-             :args    {:id {:type          String
-                            :default-value "2001"}}
-             :resolve :droid}}
+     :droid     {:type    :droid
+                 :args    {:id {:type          String
+                                :default-value "2001"}}
+                 :resolve :droid}
+
+     :allHumans {:type    (non-null (list :human))
+                 :resolve :all-humans}}
 
     :mutations
     {:create_human
@@ -102,12 +105,16 @@
    :home_planet "New one"
    :appears_in  ["JEDI"]})
 
+(defn all-humans [_ _ _]
+  [])
+
 (def star-wars-schema
   (-> schema
       (util/attach-resolvers {:hero                  resolve-hero
                               :human                 resolve-human
                               :droid                 resolve-droid
                               :friends               resolve-friends
+                              :all-humans            all-humans
                               :mutation/create-human create-human})
       schema/compile))
 

@@ -54,6 +54,7 @@
     "LIST" (recur ofType)
     "OBJECT" name
     "INTERFACE" name
+    "SCALAR" name
     nil))
 
 (defn type->field-name [env {:strs [kind name ofType]}]
@@ -80,6 +81,60 @@
               (fn [children]
                 (mapv #(map-children f %) children)))
             (mapv #(map-children f %) children)))))))
+
+(defn <<
+  ([prop] (<< prop prop))
+  ([prop name]
+   (eql/update-property-param prop assoc ::root-alias name)))
+
+(defn extract-marked-paths
+  ([input-eql]
+   (extract-marked-paths (eql/query->ast input-eql) [] {}))
+  ([{:keys [children]} path out]
+   (reduce
+     (fn [out {:keys [params key] :as ast'}]
+       (let [path' (conj path key)]
+         (->> (if-let [alias (::root-alias params)]
+                (if (contains? out alias)
+                  (throw (ex-info (str "Duplicated alias " alias) {:alias alias}))
+                  (assoc out alias path'))
+                out)
+              (extract-marked-paths ast' path'))))
+     out
+     children)))
+
+(defn pull-nested-path [x [p & ps]]
+  (let [val (get x p)]
+    (if (seq ps)
+      (cond
+        (coll/collection? val)
+        (map #(pull-nested-path % ps) val)
+
+        (nil? val)
+        nil
+
+        :else
+        (pull-nested-path val ps))
+      val)))
+
+(defn pull-nested-data [input paths]
+  (reduce
+    (fn [i [out path]]
+      (assoc i out (pull-nested-path i path)))
+    input
+    paths))
+
+(defn pull-nested [resolver]
+  (let [paths (extract-marked-paths (::pco/input resolver))]
+    (-> resolver
+        (assoc
+          ::paths paths
+          ::pco/disable-validate-input-destructuring? true)
+        (update ::pco/resolve
+          (fn [resolve]
+            (fn [env input]
+              (let [input' (pull-nested-data input paths)]
+                (resolve env input'))))))))
 
 (defn set-union-path
   [schema-env entity]
@@ -288,6 +343,23 @@
   {::gql-type-qualified-name
    (type->field-name env gql-type-raw)})
 
+(pco/defresolver type-chain-of-type [{::keys [gql-type-raw]}]
+  {::pco/output
+   [{::gql-type-chain
+     [::gql-type-raw]}]}
+  {::gql-type-chain
+   (->> (coll/iterate-while
+          #(get % "ofType")
+          gql-type-raw)
+        (map #(array-map ::gql-type-raw %)))})
+
+(pco/defresolver type-chain-has-list? [{::keys [gql-type-chain]}]
+  {::pco/input
+   [{::gql-type-chain
+     [::gql-type-kind]}]}
+  {::gql-type-chain-list?
+   (boolean (first (filter (comp #{"LIST"} ::gql-type-kind) gql-type-chain)))})
+
 (pco/defresolver type-kind [{::keys [gql-type-raw]}]
   {::gql-type-kind (get gql-type-raw "kind")})
 
@@ -340,6 +412,13 @@
   {::gql-field-qualified-name
    (entity-field-key env gql-type-name gql-field-name)})
 
+(pco/defresolver field-raw-type [{::keys [gql-field-raw]}]
+  {::pco/output
+   [{::gql-field-raw-type
+     [::gql-type-raw]}]}
+  {::gql-field-raw-type
+   {::gql-type-raw (get gql-field-raw "type")}})
+
 (pco/defresolver field-type [{::keys [gql-field-raw]}]
   {::pco/output
    [{::gql-field-type
@@ -347,6 +426,25 @@
 
   {::gql-field-type
    {::gql-type-name (type-leaf-name (get gql-field-raw "type"))}})
+
+(pco/defresolver field-args [{::keys [gql-field-raw]}]
+  {::pco/output
+   [{::gql-field-args
+     [::gql-argument-raw]}]}
+  {::gql-field-args
+   (mapv #(array-map ::gql-argument-raw %) (get gql-field-raw "args"))})
+
+(pco/defresolver argument-name [{::keys [gql-argument-raw]}]
+  {::pco/output
+   [::gql-argument-name]}
+  {::gql-argument-name (get gql-argument-raw "name")})
+
+(pco/defresolver argument-type [{::keys [gql-argument-raw]}]
+  {::pco/output
+   [{::gql-argument-type
+     [::gql-type-raw]}]}
+  {::gql-argument-type
+   {::gql-type-raw (get gql-argument-raw "type")}})
 
 (def field-type-qualified-name
   (pull-nested-attribute-resolver
@@ -472,6 +570,93 @@
     ::gql-ident-map-entries
     ::gql-ident-map-entry-resolver
     ::gql-ident-map-resolvers))
+
+;; endregion
+
+;; region inferred ident map
+
+(pco/defresolver ident-map-type-id-field [{::keys [gql-type-fields]}]
+  {::pco/input
+   [{::gql-type-fields
+     [::gql-field-name
+      ::gql-field-raw]}]
+
+   ::pco/output
+   [{::gql-type-id-field
+     [::gql-field-raw]}]}
+  {::gql-type-id-field
+   (coll/find-first #(-> % ::gql-field-name (= "id")) gql-type-fields)})
+
+(pco/defresolver ident-map-field-id-arg [{::keys [gql-field-args]}]
+  {::pco/input
+   [{::gql-field-args
+     [::gql-argument-raw
+      ::gql-argument-name]}]
+
+   ::pco/output
+   [{::gql-field-id-argument
+     [::gql-argument-raw]}]}
+  {::gql-field-id-argument
+   (coll/find-first #(-> % ::gql-argument-name (= "id")) gql-field-args)})
+
+(pco/defresolver ident-map-field-type-inferred-return
+  [{::keys [gql-type-chain-list?
+            gql-type-indexable?
+            gql-type-name
+            gql-type-id-field]}]
+  {::pco/input
+   [{::gql-field-raw-type
+     [(<< ::gql-type-chain-list?)]}
+    {::gql-field-type
+     [(<< ::gql-type-indexable?)
+      (<< ::gql-type-name)
+      (<< ::gql-type-id-field)]}]
+
+   ::pco/transform
+   pull-nested}
+  {::gql-field-type-inferred-return
+   (or (and (not gql-type-chain-list?)
+            gql-type-indexable?
+            gql-type-id-field
+            gql-type-name)
+       nil)})
+
+(pco/defresolver ident-map-field-args-name
+  [{:keys [arg-type field-type]}]
+  {::pco/input
+   [{(pco/? ::gql-field-id-argument)
+     [{::gql-argument-type
+       [(<< ::gql-type-name :arg-type)]}]}
+    {::gql-field-type
+     [::gql-type-name
+      {::gql-type-id-field
+       [{::gql-field-type
+         [(<< ::gql-type-name :field-type)]}]}]}]
+
+   ::pco/transform
+   pull-nested}
+  {::gql-ident-map-field-id-arg
+   (if (and arg-type (= arg-type field-type)) "id")})
+
+(pco/defresolver ident-map-for-query-field
+  [{::keys [gql-field-name
+            gql-ident-map-field-id-arg
+            gql-field-type-inferred-return]}]
+  {::gql-query-field-ident-map
+   (if (and gql-field-name gql-ident-map-field-id-arg gql-field-type-inferred-return)
+     {gql-field-name {gql-ident-map-field-id-arg [gql-field-type-inferred-return gql-ident-map-field-id-arg]}})})
+
+(pco/defresolver inferred-ident-map
+  [{::keys [gql-query-field-ident-map]}]
+  {::pco/input
+   [{::gql-query-type
+     [{::gql-type-fields
+       [(<< ::gql-query-field-ident-map)]}]}]
+
+   ::pco/transform
+   pull-nested}
+  {::gql-inferred-ident-map
+   (into {} (filter some?) gql-query-field-ident-map)})
 
 ;; endregion
 
@@ -620,6 +805,8 @@
          type-data-raw
          type-name
          type-qualified-name
+         type-chain-of-type
+         type-chain-has-list?
          type-kind
          type-interfaces
          type-fields
@@ -636,9 +823,13 @@
 
          field-name
          field-qualified-name
+         field-raw-type
          field-type
          field-type-qualified-name
          field-output-entry
+         field-args
+         argument-name
+         argument-type
 
          ident-map-entries
          ident-map-entry-params
@@ -647,6 +838,13 @@
          ident-map->output
          ident-map->resolve
          ident-map->resolver
+
+         ident-map-type-id-field
+         ident-map-field-id-arg
+         ident-map-field-type-inferred-return
+         ident-map-field-args-name
+         ident-map-for-query-field
+         inferred-ident-map
 
          schema-ident-map-resolvers
          schema-pathom-main-resolver

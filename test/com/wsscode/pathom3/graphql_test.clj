@@ -21,6 +21,57 @@
 
 (def schema (p.gql/load-schema schema-config t-server/request))
 
+(deftest extract-marked-paths-test
+  (is (= (p.gql/extract-marked-paths
+           [:foo])
+         {}))
+
+  (is (= (p.gql/extract-marked-paths
+           [{:foo [:bar]}])
+         {}))
+
+  (is (= (p.gql/extract-marked-paths
+           [{:foo [(p.gql/<< :bar)]}])
+         {:bar [:foo :bar]}))
+
+  (is (thrown-with-msg?
+        Throwable
+        #"Duplicated alias :bar"
+        (p.gql/extract-marked-paths
+          [{:foo [(p.gql/<< :bar)]}
+           {:baz [(p.gql/<< :bar)]}])))
+
+  (is (= (p.gql/extract-marked-paths
+           [{:foo [(p.gql/<< :bar :b1)]}
+            {:baz [(p.gql/<< :bar :b2)]}])
+         {:b1 [:foo :bar], :b2 [:baz :bar]})))
+
+(deftest pull-nested-data-test
+  (is (= (p.gql/pull-nested-data {:foo {:bar "baz"}}
+                                 {:b [:foo :bar]})
+         {:foo {:bar "baz"}
+          :b   "baz"}))
+
+  (is (= (p.gql/pull-nested-data {:foo {:bar "baz"}}
+                                 {:b [:foo :bar :baz :other :vai]})
+         {:foo {:bar "baz"}
+          :b   nil}))
+
+  (is (= (p.gql/pull-nested-data {:foo [{:bar "baz"}
+                                        {:bar "baz2"}]}
+                                 {:b [:foo :bar]})
+         {:foo [{:bar "baz"}
+                {:bar "baz2"}]
+          :b   ["baz" "baz2"]}))
+
+  (is (= (p.gql/pull-nested-data {:foo [{:bar [{:baz "baz"}
+                                               {:baz "baz2"}]}
+                                        {:bar [{:baz "baz2"}
+                                               {:baz "baz3"}]}]}
+                                 {:b [:foo :bar :baz]})
+         {:foo [{:bar [{:baz "baz"} {:baz "baz2"}]} {:bar [{:baz "baz2"} {:baz "baz3"}]}],
+          :b   [["baz" "baz2"] ["baz2" "baz3"]]})))
+
 (defn map-children-query [f query]
   (->> (eql/query->ast query)
        (p.gql/map-children f)
@@ -88,12 +139,18 @@
               :com.wsscode.pathom3.connect.operation/dynamic-name acme.sw/pathom-entry-dynamic-resolver,
               :com.wsscode.pathom3.connect.operation/output       [:acme.sw.types/human]}])))
 
+  (testing "::p.gql/gql-inferred-ident-map"
+    (is (= (p.eql/process-one schema ::p.gql/gql-inferred-ident-map)
+           {"human" {"id" ["human" "id"]}
+            "droid" {"id" ["droid" "id"]}})))
+
   (testing "type aux resolvers"
     (is (= (p.eql/process-one schema ::p.gql/gql-pathom-indexable-type-resolvers)
            '[{::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
               ::pco/input        [:acme.sw.types/Query]
               ::pco/op-name      acme.sw/Query-resolver
-              ::pco/output       [{:acme.sw.Query/droid [:acme.sw.types/droid]}
+              ::pco/output       [{:acme.sw.Query/allHumans [:acme.sw.types/human]}
+                                  {:acme.sw.Query/droid [:acme.sw.types/droid]}
                                   {:acme.sw.Query/hero [:acme.sw.interfaces/character]}
                                   {:acme.sw.Query/human [:acme.sw.types/human]}]}
              {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
@@ -129,7 +186,8 @@
              '[{::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
                 ::pco/input        [:acme.sw.types/Query]
                 ::pco/op-name      acme.sw/Query-resolver
-                ::pco/output       [{:acme.sw.Query/droid [:acme.sw.types/droid]}
+                ::pco/output       [{:acme.sw.Query/allHumans [:acme.sw.types/human]}
+                                    {:acme.sw.Query/droid [:acme.sw.types/droid]}
                                     {:acme.sw.Query/hero [:acme.sw.interfaces/character]}
                                     {:acme.sw.Query/human [:acme.sw.types/human]}]}
                {::pco/dynamic-name acme.sw/pathom-entry-dynamic-resolver
@@ -286,7 +344,6 @@
      :acme.sw.human/home_planet])
 
   (-> schema
-      psm/sm-env
    ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
     "debug"))
 
