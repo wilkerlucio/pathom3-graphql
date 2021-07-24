@@ -55,17 +55,10 @@
         [(connect-foreign-keys relations :swapi.Film/id :tmdb.Movie/id)
          (connect-foreign-keys relations :tmdb.Movie/id :swapi.Film/id)])
       (p.gql/connect-graphql
-        {::p.gql/namespace "swapi"
-         ::p.gql/ident-map {"film"     {"id" ["Film" "id"]}
-                            "person"   {"id" ["Person" "id"]}
-                            "planet"   {"id" ["Planet" "id"]}
-                            "species"  {"id" ["Species" "id"]}
-                            "starship" {"id" ["Starship" "id"]}
-                            "vehicle"  {"id" ["Vehicle" "id"]}}}
+        {::p.gql/namespace "swapi"}
         request)
       (p.gql/connect-graphql
-        {::p.gql/namespace "tmdb"
-         ::p.gql/ident-map {"node" {"id" ["Node" "id"]}}}
+        {::p.gql/namespace "tmdb"}
         request-tmdb)
       (pci/register
         [(pbir/alias-resolver :tmdb.Movie/id :tmdb.Node/id)
@@ -74,6 +67,11 @@
        "swapi")))
 
 (comment
+  (def schema (p.gql/load-schema {::p.gql/namespace "swapi"}
+     request))
+
+  (p.eql/process-one schema ::p.gql/gql-inferred-ident-map)
+
   (p.eql/process
     env
     [{:swapi.Root/allFilms
