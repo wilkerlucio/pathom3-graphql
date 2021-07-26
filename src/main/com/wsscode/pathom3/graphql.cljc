@@ -875,7 +875,9 @@
   Config may include the following keys:
 
   ::namespace (required) - a namespace (as string) to prefix the entries for this graphql"
-  [env {::keys [ident-map] :as config} request]
+  [env {::keys [ident-map namespace] :as config} request]
+  (if-not (seq namespace)
+    (throw (ex-info "Namespace is required to pull a GraphQL API." {})))
   (clet [env        env
          schema-env (load-schema config request)
          ident-map' (p.eql/process-one schema-env ::gql-inferred-ident-map)]
