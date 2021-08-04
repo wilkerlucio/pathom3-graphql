@@ -28,13 +28,7 @@ This library provides an implementation to integrate GraphQL services in Pathom 
 (def env
   (-> {}
       (p.gql/connect-graphql
-        {::p.gql/namespace "swapi"
-         ::p.gql/ident-map {"film"     {"id" ["Film" "id"]}
-                            "person"   {"id" ["Person" "id"]}
-                            "planet"   {"id" ["Planet" "id"]}
-                            "species"  {"id" ["Species" "id"]}
-                            "starship" {"id" ["Starship" "id"]}
-                            "vehicle"  {"id" ["Vehicle" "id"]}}}
+        {::p.gql/namespace "swapi"}
         request)))
 
 (p.eql/process
