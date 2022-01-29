@@ -82,6 +82,8 @@
                 (mapv #(map-children f %) children)))
             (mapv #(map-children f %) children)))))))
 
+; region pull nested
+
 (defn <<
   ([prop] (<< prop prop))
   ([prop name]
@@ -135,6 +137,8 @@
             (fn [env input]
               (let [input' (pull-nested-data input paths)]
                 (resolve env input'))))))))
+
+; endregion
 
 (defn set-union-path
   [schema-env entity]
@@ -635,7 +639,8 @@
    ::pco/transform
    pull-nested}
   {::gql-ident-map-field-id-arg
-   (if (and arg-type (= arg-type field-type)) "id")})
+   (if (and arg-type (= arg-type field-type))
+     "id")})
 
 (pco/defresolver ident-map-for-query-field
   [{::keys [gql-field-name
@@ -878,14 +883,15 @@
   [env {::keys [ident-map namespace] :as config} request]
   (if-not (seq namespace)
     (throw (ex-info "Namespace is required to pull a GraphQL API." {})))
-  (clet [env        env
-         schema-env (load-schema config request)
-         ident-map' (p.eql/process-one schema-env ::gql-inferred-ident-map)]
-    (-> env
-        (pci/register
-          (p.eql/process-one
-            (assoc schema-env ::ident-map (merge ident-map' ident-map))
-            ::gql-pathom-indexes)))))
+  (time
+    (clet [env        env
+           schema-env (load-schema config request)
+           ident-map' (p.eql/process-one schema-env ::gql-inferred-ident-map)]
+      (-> env
+          (pci/register
+            (p.eql/process-one
+              (assoc schema-env ::ident-map (merge ident-map' ident-map))
+              ::gql-pathom-indexes))))))
 
 (comment
   (tap> env)

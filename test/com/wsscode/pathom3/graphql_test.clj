@@ -318,6 +318,7 @@
             :acme.sw.droid/name             "Droid Sample",
             :acme.sw.droid/primary_function ["Work"]})))
 
+  #_
   (testing "call mutation"
     (is (= (p.eql/process
              gql-env
