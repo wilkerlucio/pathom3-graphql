@@ -125,6 +125,7 @@
   (p.gql/load-schema {::p.gql/namespace "acme.stars"} request))
 
 (comment
+  (tap> (load-schema request))
 
   (request (eql-gql/query->graphql p.gql/schema-query) )
 

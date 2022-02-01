@@ -58,7 +58,8 @@
         {::p.gql/namespace "swapi"}
         request)
       (p.gql/connect-graphql
-        {::p.gql/namespace "tmdb"}
+        {::p.gql/namespace "tmdb"
+         ::p.gql/ident-map {"node" {"id" ["Node" "id"]}}}
         request-tmdb)
       (pci/register
         [(pbir/alias-resolver :tmdb.Movie/id :tmdb.Node/id)
@@ -103,7 +104,11 @@
     {}
     [{'(:tmdb.Query/node {:tmdb.Node/id "MDoxODk1"})
       {:tmdb.types/Movie
-       [:tmdb.Movie/title]}}]))
+       [:tmdb.Movie/title
+        {:tmdb.Movie/images
+         [{:tmdb.MediaImages/backdrops
+           ['(:tmdb.BackdropSizeDetailImage/image
+               {:size W1280})]}]}]}}]))
 
 (comment
   (->> (coll/index-by :swapi.Film/id relations)
