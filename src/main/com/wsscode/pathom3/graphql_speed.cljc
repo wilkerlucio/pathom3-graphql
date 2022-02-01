@@ -128,10 +128,10 @@
 (defn format-error [{:strs [message path]}]
   (str message " at path " (pr-str path)))
 
-(defn process-gql-request [{::keys [request] :as schema-env} env _input]
+(defn process-gql-request [{::keys [request] :as schema-env} env input]
   (let [node     (::pcp/node env)
-        ast      (-> node
-                     ::pcp/foreign-ast
+        ast      (-> (or (::pcp/foreign-ast node)
+                         (::pcp/foreign-ast input))
                      prepare-gql-ast)
         gql      (-> ast eql-gql/ast->graphql)
         response (->> (request gql)
@@ -167,6 +167,7 @@
         (assoc
           ::gql-field-name field-name
           ::gql-field-leaf-type field-type-name
+          ::gql-field-leaf-fq-type field-type-fq-name
           ::gql-list-type? (->> (type-chain type)
                                 (some #(= "LIST" (get % "kind")))
                                 boolean)
@@ -292,6 +293,18 @@
          ::pco/output       gql-type-resolver-output}))
     gql-indexable-types))
 
+(defn pathom-mutations
+  [{::keys [gql-dynamic-op-name
+            gql-mutation-type]}]
+  (let [{:strs [fields]} gql-mutation-type]
+    (mapv
+      (fn [{::keys [gql-field-name
+                    gql-field-leaf-fq-type]}]
+        {::pco/op-name      (symbol gql-field-name)
+         ::pco/dynamic-name gql-dynamic-op-name
+         ::pco/output       [gql-field-leaf-fq-type]})
+      fields)))
+
 (defn build-pathom-indexes [{::keys [namespace ident-map] :as env} schema]
   (let [{:strs [queryType mutationType types]} (get-in schema ["data" "__schema"])
 
@@ -346,7 +359,8 @@
             [(pathom-main-resolver env' dynamic-op-name)
              (pathom-query-entry-resolver (::gql-type-name query-type))
              (mapv pco/resolver (pathom-ident-map-resolvers env'))
-             (mapv pco/resolver (pathom-type-resolvers env'))])))))
+             (mapv pco/resolver (pathom-type-resolvers env'))
+             (mapv pco/mutation (pathom-mutations env'))])))))
 
 (defn load-schema [config request]
   (clet [gql-schema-raw (request (eql-gql/query->graphql schema-query))]

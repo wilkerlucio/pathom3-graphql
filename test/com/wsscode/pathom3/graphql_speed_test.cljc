@@ -119,14 +119,13 @@
             :acme.sw.droid/name             "Droid Sample",
             :acme.sw.droid/primary_function ["Work"]})))
 
-  #_
-          (testing "call mutation"
-            (is (= (p.eql/process
-                     gql-env
-                     [{'(acme.sw.Mutation/create_human {:name "Human"})
-                       [:acme.sw.human/id
-                        :acme.sw.human/name]}])
-                   '{acme.sw.Mutation/create_human {:acme.sw.human/id "3000", :acme.sw.human/name "Human"}}))))
+  (testing "call mutation"
+    (is (= (p.eql/process
+             gql-env
+             [{'(acme.sw.Mutation/create_human {:name "Human"})
+               [:acme.sw.human/id
+                :acme.sw.human/name]}])
+           '{acme.sw.Mutation/create_human {:acme.sw.human/id "3000", :acme.sw.human/name "Human"}}))))
 
 (comment
 
@@ -140,30 +139,28 @@
      :acme.sw.human/name
      :acme.sw.human/home_planet])
 
-  #_
-  (-> schema
-      ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
-       "debug"))
-
-  #_ #_
-  (p.eql/process
-    (-> gql-env
+  #_(-> schema
         ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
-         "gql"))
-    {:acme.sw.human/id "1000"
-     :acme.sw.droid/id "3"}
-    [:acme.sw.human/id
-     :acme.sw.human/name
+         "debug"))
 
-     :acme.sw.droid/name
-     :acme.sw.droid/primary_function])
+  #_#_(p.eql/process
+        (-> gql-env
+            ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
+             "gql"))
+        {:acme.sw.human/id "1000"
+         :acme.sw.droid/id "3"}
+        [:acme.sw.human/id
+         :acme.sw.human/name
 
-  (p.eql/process
-    (-> gql-env
-        ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
-         "gql"))
-    {:acme.sw.droid/id "3"}
-    [:acme.sw.droid/name])
+         :acme.sw.droid/name
+         :acme.sw.droid/primary_function])
+
+          (p.eql/process
+            (-> gql-env
+                ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
+                 "gql"))
+            {:acme.sw.droid/id "3"}
+            [:acme.sw.droid/name])
 
   (psm/datafy-smart-map schema)
 
