@@ -40,6 +40,9 @@
 (comment
   (time
     (def env (make-env)))
+  ; => 151756
 
   (time
-    (def env2 (make-env2))))
+    (def env2 (make-env2)))
+  ; => 3805
+  )

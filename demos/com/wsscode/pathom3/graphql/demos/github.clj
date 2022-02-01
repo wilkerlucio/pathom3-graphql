@@ -1,7 +1,7 @@
 (ns com.wsscode.pathom3.graphql.demos.github
   (:require
     [clojure.data.json :as json]
-    [com.wsscode.pathom3.graphql :as p.gql]
+    [com.wsscode.pathom3.graphql-speed :as p.gql]
     [org.httpkit.client :as http]))
 
 (def token (System/getenv "GITHUB_TOKEN"))
