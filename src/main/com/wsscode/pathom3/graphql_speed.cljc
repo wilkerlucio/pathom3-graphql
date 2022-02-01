@@ -223,50 +223,56 @@
 (defn pathom-query-entry-resolver [type-name]
   (pbir/constantly-resolver type-name {}))
 
+(defn pathom-ident-map-resolve
+  [{::keys [gql-dynamic-op-name] :as env}
+   {::keys [gql-field-name]}]
+  (fn ident-map-resolve [{::pcp/keys [node] :as env'} input]
+    (if-not (next-is-expected-dynamic? env' gql-dynamic-op-name)
+      (throw (ex-info "Unexpected node structure. Please report this issue."
+                      {})))
+    (let [{::pcp/keys [node graph] :as env'}
+          (update-in env' [::pcp/graph
+                           ::pcp/nodes
+                           (::pcp/run-next node)
+                           ::pcp/foreign-ast]
+            (fn [{:keys [children] :as f-ast}]
+              (assoc f-ast :children
+                [(assoc (pf.eql/prop gql-field-name)
+                   :type :join
+                   :params input
+                   :children children)])))
+          next-node (pcp/get-node graph (::pcp/run-next node))
+          response  (process-gql-request env
+                                         (-> env' (assoc ::pcp/node next-node))
+                                         input)]
+      (get response gql-field-name))))
+
 (defn pathom-ident-map-resolvers
-  [{::keys [gql-dynamic-op-name
-            gql-query-type
+  [{::keys [gql-query-type
             gql-types-index
             ident-map
             namespace]
     :as    env}]
-  (mapv
-    (fn [[field-name params]]
-      (let [op-name                  (symbol namespace (str field-name "-ident-entry-resolver"))
-            input                    (mapv #(entity-field-key env (first %) (second %)) (vals params))
-            output-type              (as-> gql-query-type <>
-                                       (get <> "fields")
-                                       (coll/find-first #(-> % (get "name") (= field-name)) <>)
-                                       (get <> ::gql-field-leaf-type)
-                                       (get-in gql-types-index [<> ::gql-type-name]))
+  (let [query-fields (get gql-query-type "fields")
+        find-field   (fn [field]
+                       (coll/find-first #(-> % (get "name") (= field))
+                                        query-fields))]
+    (mapv
+      (fn [[field-name params]]
+        (let [op-name     (symbol namespace (str field-name "-ident-entry-resolver"))
 
-            gql-field-qualified-name (first input)
+              {::keys [gql-field-leaf-type]
+               :as    field}
+              (find-field field-name)
 
-            resolve                  (fn ident-map-resolve [{::pcp/keys [node] :as env'} input]
-                                       (if-not (next-is-expected-dynamic? env' gql-dynamic-op-name)
-                                         (throw (ex-info "Unexpected node structure. Please report this issue."
-                                                         {})))
-                                       (let [{::pcp/keys [node graph] :as env'}
-                                             (update-in env' [::pcp/graph
-                                                              ::pcp/nodes
-                                                              (::pcp/run-next node)
-                                                              ::pcp/foreign-ast]
-                                               (fn [{:keys [children] :as f-ast}]
-                                                 (assoc f-ast :children
-                                                   [(assoc (pf.eql/prop gql-field-qualified-name)
-                                                      :type :join
-                                                      :params input
-                                                      :children children)])))
-                                             next-node (pcp/get-node graph (::pcp/run-next node))
-                                             response  (process-gql-request env
-                                                                            (-> env' (assoc ::pcp/node next-node))
-                                                                            input)]
-                                         (get response gql-field-qualified-name)))]
-        {::pco/op-name op-name
-         ::pco/input   input
-         ::pco/output  [output-type]
-         ::pco/resolve resolve}))
-    ident-map))
+              input       (mapv #(entity-field-key env (first %) (second %)) (vals params))
+              output-type (get-in gql-types-index [gql-field-leaf-type ::gql-type-name])
+              resolve     (pathom-ident-map-resolve env field)]
+          {::pco/op-name op-name
+           ::pco/input   input
+           ::pco/output  [output-type]
+           ::pco/resolve resolve}))
+      ident-map)))
 
 (defn pathom-type-resolvers
   [{::keys [namespace
@@ -342,6 +348,12 @@
              (mapv pco/resolver (pathom-ident-map-resolvers env'))
              (mapv pco/resolver (pathom-type-resolvers env'))])))))
 
+(defn load-schema [config request]
+  (clet [gql-schema-raw (request (eql-gql/query->graphql schema-query))]
+    (build-pathom-indexes
+      (assoc config ::request request)
+      gql-schema-raw)))
+
 (defn connect-graphql
   "Setup a GraphQL connection on the env.
 
@@ -356,12 +368,7 @@
   [env {::keys [namespace] :as config} request]
   (if-not (seq namespace)
     (throw (ex-info "Namespace is required to pull a GraphQL API." {})))
-  (clet [env            env
-         gql-schema-raw (request (eql-gql/query->graphql schema-query))
-
-         {::keys [gql-pathom-indexes]}
-         (build-pathom-indexes
-           (assoc config ::request request)
-           gql-schema-raw)]
+  (clet [{::keys [gql-pathom-indexes]} (load-schema config request)
+         env env]
     (-> env
         (pci/register gql-pathom-indexes))))

@@ -329,7 +329,8 @@
 
 (comment
 
-  (::p.gql/gql-pathom-indexes schema)
+  (tap> (p.eql/process-one schema ::p.gql/gql-pathom-indexes))
+  (p.eql/process-one schema ::p.gql/gql-types-index)
   (::p.gql/gql-ident-map-resolvers schema)
   (mapv ::p.gql/gql-type-qualified-name (::p.gql/gql-all-types schema))
   (p.eql/process
