@@ -2,7 +2,6 @@
   (:require
     [clojure.data.json :as json]
     [com.wsscode.pathom3.graphql :as p.gql]
-    [com.wsscode.pathom3.graphql-speed :as p.gql2]
     [com.wsscode.pathom3.interface.eql :as p.eql]
     [org.httpkit.client :as http]))
 
@@ -23,19 +22,12 @@
         {::p.gql/namespace "swapi"}
         request)))
 
-(defn make-env2 []
-  (-> {}
-      (p.gql2/connect-graphql
-        {::p.gql2/namespace "swapi"}
-        request)))
-
 
 (comment
   (def env (make-env))
-  (def env2 (make-env2))
 
   (p.eql/process
-    env2
+    env
     [{:swapi.Root/allFilms
       [{:swapi.FilmsConnection/films
         [:swapi.Film/director

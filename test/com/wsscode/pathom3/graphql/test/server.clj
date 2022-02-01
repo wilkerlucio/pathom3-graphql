@@ -4,7 +4,7 @@
     [com.walmartlabs.lacinia :refer [execute]]
     [com.walmartlabs.lacinia.schema :as schema]
     [com.walmartlabs.lacinia.util :as util]
-    [com.wsscode.pathom3.graphql-speed :as p.gql]
+    [com.wsscode.pathom3.graphql :as p.gql]
     [com.wsscode.pathom3.interface.smart-map :as psm]
     [edn-query-language.eql-graphql :as eql-gql]
     [org.httpkit.client :as http]))

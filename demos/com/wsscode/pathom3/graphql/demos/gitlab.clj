@@ -2,7 +2,6 @@
   (:require
     [clojure.data.json :as json]
     [com.wsscode.pathom3.graphql :as p.gql]
-    [com.wsscode.pathom3.graphql-speed :as p.gql2]
     [org.httpkit.client :as http]
     [org.httpkit.sni-client :as sni-client]))
 
@@ -29,20 +28,6 @@
       ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
        "gql-gitlab")))
 
-(defn make-env2 []
-  (-> {}
-      (p.gql2/connect-graphql
-        {::p.gql2/namespace "gitlab"}
-        request)
-      ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
-       "gql-gitlab")))
-
 (comment
   (time
-    (def env (make-env)))
-  ; => 151756
-
-  (time
-    (def env2 (make-env2)))
-  ; => 3805
-  )
+    (def env (make-env))))
