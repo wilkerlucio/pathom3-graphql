@@ -36,4 +36,12 @@
   (p.eql/process
     env
     {:swapi.Film/id "ZmlsbXM6Mg=="}
-    [:swapi.Film/title]))
+    [:swapi.Film/title])
+
+  (p.eql/process env
+    [{:swapi.Root/allPeople
+      [{:swapi.PeopleConnection/people
+        [:swapi.Person/name
+         {:swapi.Person/filmConnection
+          [{:swapi.PersonFilmsConnection/films
+            [:swapi.Film/title]}]}]}]}]))

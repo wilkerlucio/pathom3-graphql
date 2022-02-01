@@ -129,13 +129,13 @@
   (str message " at path " (pr-str path)))
 
 (defn process-gql-request [{::keys [request] :as schema-env} env input]
-  (let [node     (::pcp/node env)
-        ast      (-> (or (::pcp/foreign-ast node)
-                         (::pcp/foreign-ast input))
-                     prepare-gql-ast)
-        gql      (-> ast eql-gql/ast->graphql)
-        response (->> (request gql)
-                      (walk/postwalk #(set-union-path schema-env %)))]
+  (clet [node     (::pcp/node env)
+         ast      (-> (or (::pcp/foreign-ast node)
+                          (::pcp/foreign-ast input))
+                      prepare-gql-ast)
+         gql      (-> ast eql-gql/ast->graphql)
+         response (request gql)
+         response (walk/postwalk #(set-union-path schema-env %) response)]
     (pcr/merge-node-stats! env node
       {::request gql})
     (if-let [errors (get response "errors")]
