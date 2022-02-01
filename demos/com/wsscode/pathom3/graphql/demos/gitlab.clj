@@ -2,6 +2,7 @@
   (:require
     [clojure.data.json :as json]
     [com.wsscode.pathom3.graphql :as p.gql]
+    [com.wsscode.pathom3.graphql-speed :as p.gql2]
     [org.httpkit.client :as http]
     [org.httpkit.sni-client :as sni-client]))
 
@@ -17,7 +18,6 @@
                     "Accept"       "*/*"
                     "Authorization" (str "Bearer " token)}
           :body    (json/write-str {:query query})})
-      (doto tap>)
       :body
       json/read-str))
 
@@ -29,6 +29,17 @@
       ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
        "gql-gitlab")))
 
+(defn make-env2 []
+  (-> {}
+      (p.gql2/connect-graphql
+        {::p.gql2/namespace "gitlab"}
+        request)
+      ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
+       "gql-gitlab")))
+
 (comment
   (time
-    (def env (make-env))))
+    (def env (make-env)))
+
+  (time
+    (def env2 (make-env2))))

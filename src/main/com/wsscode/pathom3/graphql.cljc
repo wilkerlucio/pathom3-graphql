@@ -883,18 +883,11 @@
   [env {::keys [ident-map namespace] :as config} request]
   (if-not (seq namespace)
     (throw (ex-info "Namespace is required to pull a GraphQL API." {})))
-  (time
-    (clet [env        env
-           schema-env (load-schema config request)
-           ident-map' (p.eql/process-one schema-env ::gql-inferred-ident-map)]
-      (-> env
-          (pci/register
-            (p.eql/process-one
-              (assoc schema-env ::ident-map (merge ident-map' ident-map))
-              ::gql-pathom-indexes))))))
-
-(comment
-  (tap> env)
-
-  (p.eql/process env
-    [{::gql-query-type [::gql-type-name]}]))
+  (clet [env        env
+         schema-env (load-schema config request)
+         ident-map' (p.eql/process-one schema-env ::gql-inferred-ident-map)]
+    (-> env
+        (pci/register
+          (p.eql/process-one
+            (assoc schema-env ::ident-map (merge ident-map' ident-map))
+            ::gql-pathom-indexes)))))
