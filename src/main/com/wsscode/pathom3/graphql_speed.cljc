@@ -160,26 +160,30 @@
          #(get % "ofType")
          type)))
 
-(defn adapt-field [env {type-name "name"} {:strs [type name args] :as field}]
-  (-> field
-      (assoc
-        ::gql-field-name (entity-field-key env type-name name)
-        ::gql-field-leaf-type (type-leaf-name type)
-        ::gql-list-type? (->> (type-chain type)
-                              (some #(= "LIST" (get % "kind")))
-                              boolean)
-        ::gql-id-arg (coll/find-first #(-> % (get "name") (= "id")) args))))
+(defn adapt-field [{::keys [gql-types-index] :as env} {type-name "name"} {:strs [type name args] :as field}]
+  (let [field-type-name    (type-leaf-name type)
+        field-type-fq-name (get-in gql-types-index [field-type-name ::gql-type-name])
+        field-name         (entity-field-key env type-name name)]
+    (-> field
+        (assoc
+          ::gql-field-name field-name
+          ::gql-field-leaf-type field-type-name
+          ::gql-list-type? (->> (type-chain type)
+                                (some #(= "LIST" (get % "kind")))
+                                boolean)
+          ::gql-id-arg (coll/find-first #(-> % (get "name") (= "id")) args)
+          ::gql-field-output-entry (if field-type-fq-name
+                                     {field-name [field-type-fq-name]}
+                                     field-name)))))
 
 (defn adapt-type [env type]
-  (let [field-adapter (partial adapt-field env type)]
-    (-> type
-        (assoc
-          ::gql-type-name (type->field-name env type)
-          ::gql-type-indexable? (type-indexable? env type))
-        (update "fields" #(mapv field-adapter %))
-        (as-> <>
-          (assoc <>
-            ::gql-type-id-field (coll/find-first #(-> % (get "name") (= "id")) (get <> "fields")))))))
+  (-> type
+      (assoc
+        ::gql-type-name (type->field-name env type)
+        ::gql-type-indexable? (type-indexable? env type))
+      (as-> <>
+        (assoc <>
+          ::gql-type-id-field (coll/find-first #(-> % (get "name") (= "id")) (get <> "fields"))))))
 
 (defn inferred-ident-map [{::keys [gql-types-index]} {:strs [fields]}]
   (into {}
@@ -195,6 +199,20 @@
                        gql-id-arg)
                 [field-name {(get gql-id-arg "name") [name (get gql-type-id-field "name")]}]))))
         fields))
+
+(defn interfaces-usage-index [{::keys [gql-object-types gql-types-index]}]
+  (reduce
+    (fn [idx
+         {:strs     [interfaces]
+          type-name ::gql-type-name}]
+      (reduce
+        (fn [idx {:strs [name]}]
+          (let [interface-name (get-in gql-types-index [name ::gql-type-name])]
+            (update idx interface-name coll/sconj type-name)))
+        idx
+        interfaces))
+    {}
+    gql-object-types))
 
 (defn pathom-main-resolver [env gql-dynamic-op-name]
   (pco/resolver gql-dynamic-op-name
@@ -251,6 +269,24 @@
          ::pco/resolve resolve}))
     ident-map))
 
+(defn pathom-type-resolvers
+  [{::keys [namespace
+            gql-indexable-types
+            gql-interface-usages-index
+            gql-dynamic-op-name]}]
+  (mapv
+    (fn [{:strs [name fields] ::keys [gql-type-name]}]
+      (let [gql-type-resolver-op-name (symbol namespace (str name "-resolver"))
+            gql-type-resolver-input   [gql-type-name]
+            gql-interface-usages      (get gql-interface-usages-index gql-type-name)
+            gql-type-resolver-output  (-> (or (some-> gql-interface-usages vec) [])
+                                          (into (map ::gql-field-output-entry) fields))]
+        {::pco/op-name      gql-type-resolver-op-name
+         ::pco/dynamic-name gql-dynamic-op-name
+         ::pco/input        gql-type-resolver-input
+         ::pco/output       gql-type-resolver-output}))
+    gql-indexable-types))
+
 (comment
   (time
     (let [{:strs [queryType mutationType types]} (get-in schema-demo ["data" "__schema"])
@@ -265,6 +301,18 @@
           types-index     (coll/index-by #(get % "name")
                             (into [] (comp (map #(adapt-type env %))
                                            (filter ::gql-type-name)) types))
+
+          env'            (assoc env
+                            ::gql-dynamic-op-name dynamic-op-name
+                            ::gql-types-index types-index)
+
+          types-index     (coll/map-vals
+                            (fn [type]
+                              (let [field-adapter (partial adapt-field env' type)]
+                                (update type "fields" #(mapv field-adapter %)))) types-index)
+
+          env'            (assoc env' ::gql-types-index types-index)
+
           indexable-types (into [] (filter ::gql-type-indexable?) (vals types-index))
           object-types    (into [] (filter #(-> % (get "kind") (= "OBJECT"))) (vals types-index))
           interface-types (into [] (filter #(-> % (get "kind") (= "INTERFACE"))) (vals types-index))
@@ -279,31 +327,30 @@
                             mutation-type
                             (conj (get mutation-type ::gql-type-name)))
 
-          env'            (assoc env
+          env'            (assoc env'
                             ::ident-map ident-map
-                            ::gql-dynamic-op-name dynamic-op-name
-                            ::gql-types-index types-index
                             ::gql-indexable-types indexable-types
                             ::gql-object-types object-types
                             ::gql-interface-types interface-types
                             ::gql-query-type query-type
-                            ::gql-mutation-type mutation-type)]
-      (tap>
-        (-> (assoc env'
-              ::pci/transient-attrs transients
-              :ident-map-resolvers (pathom-ident-map-resolvers env'))
-            (pci/register
-              [(pathom-main-resolver env' dynamic-op-name)
-               (pathom-query-entry-resolver (::gql-type-name query-type))
-               (mapv pco/resolver (pathom-ident-map-resolvers env'))])))
+                            ::gql-mutation-type mutation-type)
 
-      #_(-> {::pci/transient-attrs gql-pathom-transient-attrs}
-            (pci/register
-              [gql-pathom-main-resolver
-               gql-pathom-query-type-entry-resolver
-               (mapv pco/resolver gql-ident-map-resolvers)
-               (mapv pco/resolver gql-pathom-indexable-type-resolvers)
-               (mapv pco/mutation gql-pathom-mutations)])))))
+          env'            (assoc env' ::gql-interface-usages-index (interfaces-usage-index env'))
+          env'            (assoc env'
+                            :indexable-type-resolvers (pathom-type-resolvers env')
+                            :ident-map-resolvers (pathom-ident-map-resolvers env'))]
+      (-> (assoc env'
+            ::gql-pathom-indexes
+            (-> {::pci/transient-attrs transients}
+                (pci/register
+                  [(pathom-main-resolver env' dynamic-op-name)
+                   (pathom-query-entry-resolver (::gql-type-name query-type))
+                   (mapv pco/resolver (pathom-ident-map-resolvers env'))
+                   (mapv pco/resolver (pathom-type-resolvers env'))])))
+
+        (doto tap>))
+
+      nil)))
 
 ; region temp
 
