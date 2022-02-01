@@ -87,8 +87,7 @@
   (let [type (and entity (map? entity) (get entity "__typename"))]
     (cond-> entity
       type
-      (vary-meta assoc ::pf.eql/union-entry-key
-                 (p.eql/process-one schema-env {::gql-type-name type} ::gql-type-name)))))
+      (vary-meta assoc ::pf.eql/union-entry-key (type-key schema-env type)))))
 
 (defn convert-back [env response]
   (let [ast (-> env
@@ -208,23 +207,48 @@
   (pbir/constantly-resolver type-name {}))
 
 (defn pathom-ident-map-resolvers
-  [{::keys [gql-query-type
+  [{::keys [gql-dynamic-op-name
+            gql-query-type
             gql-types-index
             ident-map
             namespace]
     :as    env}]
   (mapv
     (fn [[field-name params]]
-      (let [op-name     (symbol namespace (str field-name "-ident-entry-resolver"))
-            input       (mapv #(entity-field-key env (first %) (second %)) (vals params))
-            output-type (as-> gql-query-type <>
-                          (get <> "fields")
-                          (coll/find-first #(-> % (get "name") (= field-name)) <>)
-                          (get <> ::gql-field-leaf-type)
-                          (get-in gql-types-index [<> ::gql-type-name]))]
+      (let [op-name                  (symbol namespace (str field-name "-ident-entry-resolver"))
+            input                    (mapv #(entity-field-key env (first %) (second %)) (vals params))
+            output-type              (as-> gql-query-type <>
+                                       (get <> "fields")
+                                       (coll/find-first #(-> % (get "name") (= field-name)) <>)
+                                       (get <> ::gql-field-leaf-type)
+                                       (get-in gql-types-index [<> ::gql-type-name]))
+
+            gql-field-qualified-name (first input)
+
+            resolve                  (fn ident-map-resolve [{::pcp/keys [node] :as env'} input]
+                                       (if-not (next-is-expected-dynamic? env' gql-dynamic-op-name)
+                                         (throw (ex-info "Unexpected node structure. Please report this issue."
+                                                         {})))
+                                       (let [{::pcp/keys [node graph] :as env'}
+                                             (update-in env' [::pcp/graph
+                                                              ::pcp/nodes
+                                                              (::pcp/run-next node)
+                                                              ::pcp/foreign-ast]
+                                               (fn [{:keys [children] :as f-ast}]
+                                                 (assoc f-ast :children
+                                                   [(assoc (pf.eql/prop gql-field-qualified-name)
+                                                      :type :join
+                                                      :params input
+                                                      :children children)])))
+                                             next-node (pcp/get-node graph (::pcp/run-next node))
+                                             response  (process-gql-request env
+                                                                            (-> env' (assoc ::pcp/node next-node))
+                                                                            input)]
+                                         (get response gql-field-qualified-name)))]
         {::pco/op-name op-name
          ::pco/input   input
-         ::pco/output  [output-type]}))
+         ::pco/output  [output-type]
+         ::pco/resolve resolve}))
     ident-map))
 
 (comment
@@ -257,6 +281,7 @@
 
           env'            (assoc env
                             ::ident-map ident-map
+                            ::gql-dynamic-op-name dynamic-op-name
                             ::gql-types-index types-index
                             ::gql-indexable-types indexable-types
                             ::gql-object-types object-types
@@ -270,7 +295,7 @@
             (pci/register
               [(pathom-main-resolver env' dynamic-op-name)
                (pathom-query-entry-resolver (::gql-type-name query-type))
-               #_(pathom-ident-map-resolvers env')])))
+               (mapv pco/resolver (pathom-ident-map-resolvers env'))])))
 
       #_(-> {::pci/transient-attrs gql-pathom-transient-attrs}
             (pci/register
