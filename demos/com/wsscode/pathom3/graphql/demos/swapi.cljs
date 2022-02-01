@@ -4,7 +4,7 @@
     [com.wsscode.pathom3.interface.async.eql :as p.eql]
     [promesa.core :as p]))
 
-(defn request-gitlab-graphql
+(defn request-swapi-graphql
   [query]
   (p/let [url "https://swapi-graphql.netlify.app/.netlify/functions/index"
           headers #js {"Content-Type"  "application/json"
@@ -20,7 +20,7 @@
   (-> {}
       (p.gql/connect-graphql
         {::p.gql/namespace "swapi"}
-        request-gitlab-graphql)))
+        request-swapi-graphql)))
 
 (comment
   (p/let [env env]
