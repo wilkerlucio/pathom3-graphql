@@ -107,7 +107,6 @@
     (is (= (p.eql/process
              gql-env
              {:acme.sw.human/id "1000"
-
               :acme.sw.droid/id "3"}
              [:acme.sw.human/id
               :acme.sw.human/name
