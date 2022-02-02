@@ -1,5 +1,6 @@
 (ns com.wsscode.pathom3.graphql
   (:require
+    [clojure.set :as set]
     [clojure.spec.alpha :as s]
     [clojure.string :as str]
     [clojure.walk :as walk]
@@ -22,6 +23,7 @@
                       (s/tuple string? string?))))
 
 (>def ::namespace string?)
+(>def ::root-entries-map (s/map-of string? (s/map-of string? (s/tuple string? string?))))
 
 (def schema-query
   [{:__schema
@@ -226,6 +228,18 @@
               (map (juxt ::gql-field-name ::gql-field-leaf-type)))
         (vals gql-types-index)))
 
+(defn index-root-entries-fields [env]
+  (update env
+    ::root-entries-map
+    (fn [root-entries]
+      (coll/map-vals
+        (fn [args]
+          (into args
+                (map (fn [[arg [type field]]]
+                       (coll/make-map-entry (entity-field-key env type field) arg)))
+                args))
+        root-entries))))
+
 (defn pathom-main-resolver [env gql-dynamic-op-name]
   (pco/resolver gql-dynamic-op-name
     {::pco/dynamic-resolver? true
@@ -237,13 +251,15 @@
   (pbir/constantly-resolver type-name {}))
 
 (defn pathom-root-entries-map-resolve
-  [{::keys [gql-dynamic-op-name] :as env}
-   {::keys [gql-field-name]}]
-  (fn ident-map-resolve [{::pcp/keys [node] :as env'} input]
+  [{::keys [gql-dynamic-op-name root-entries-map] :as env}
+   {::keys [gql-field-name] :strs [name]}]
+  (fn root-entries-resolve [{::pcp/keys [node] :as env'} input]
     (if-not (next-is-expected-dynamic? env' gql-dynamic-op-name)
       (throw (ex-info "Unexpected node structure. Please report this issue."
                       {})))
-    (let [{::pcp/keys [node graph] :as env'}
+    (let [input (set/rename-keys input (get root-entries-map name))
+
+          {::pcp/keys [node graph] :as env'}
           (update-in env' [::pcp/graph
                            ::pcp/nodes
                            (::pcp/run-next node)
@@ -260,7 +276,7 @@
                                          input)]
       (get response gql-field-name))))
 
-(defn pathom-ident-map-resolvers
+(defn pathom-root-entries-resolvers
   [{::keys [gql-query-type
             gql-types-index
             root-entries-map
@@ -278,7 +294,10 @@
                :as    field}
               (find-field field-name)
 
-              input       (mapv #(entity-field-key env (first %) (second %)) (vals params))
+              input       (->> params
+                               (coll/filter-keys string?)
+                               (vals)
+                               (mapv #(entity-field-key env (first %) (second %))))
               output-type (get-in gql-types-index [gql-field-leaf-type ::gql-type-name])
               resolve     (pathom-root-entries-map-resolve env field)]
           {::pco/op-name op-name
@@ -365,14 +384,15 @@
                            ::gql-mutation-type mutation-type
                            ::gql-fields-index (fields-index env'))
 
-        env'            (assoc env' ::gql-interface-usages-index (interfaces-usage-index env'))]
+        env'             (assoc env' ::gql-interface-usages-index (interfaces-usage-index env'))
+        env'             (index-root-entries-fields env')]
     (assoc env'
       ::gql-pathom-indexes
       (-> {::pci/transient-attrs transients}
           (pci/register
             [(pathom-main-resolver env' dynamic-op-name)
              (pathom-query-entry-resolver (::gql-type-name query-type))
-             (mapv pco/resolver (pathom-ident-map-resolvers env'))
+             (mapv pco/resolver (pathom-root-entries-resolvers env'))
              (mapv pco/resolver (pathom-type-resolvers env'))
              (mapv pco/mutation (pathom-mutations env'))])))))
 

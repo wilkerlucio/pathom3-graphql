@@ -22,7 +22,9 @@
 (defn make-env []
   (-> {}
       (p.gql/connect-graphql
-        {::p.gql/namespace "github"}
+        {::p.gql/namespace        "github"
+         ::p.gql/root-entries-map {"repository" {"name"  ["Repository" "name"]
+                                                 "owner" ["User" "name"]}}}
         request)
       ((requiring-resolve 'com.wsscode.pathom.viz.ws-connector.pathom3/connect-env)
        "gql-github")))

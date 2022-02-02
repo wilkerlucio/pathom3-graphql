@@ -14,6 +14,9 @@
 
 (def schema (p.gql/load-schema schema-config t-server/request))
 
+(comment
+  (tap> schema))
+
 (def gql-env
   (-> {}
       (p.gql/connect-graphql
