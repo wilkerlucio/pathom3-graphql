@@ -21,35 +21,44 @@
         t-server/request)))
 
 (defn prepare-gql-query [query]
-  (-> query
-      eql/query->ast
-      p.gql/prepare-gql-ast
-      eql/ast->query))
+  (->> query
+       eql/query->ast
+       (p.gql/prepare-gql-ast schema)
+       eql/ast->query))
 
 (deftest prepare-gql-query-test
-  (is (= (prepare-gql-query
-           [{:acme.sw.Query/hero
-             [:acme.sw.character/id
-              :acme.sw.character/name
-              :acme.sw.human/home_planet]}])
-         '[({:acme.sw.Query/hero [(:acme.sw.character/id
-                                    {:edn-query-language.eql-graphql/on "character"})
-                                  (:acme.sw.character/name
-                                    {:edn-query-language.eql-graphql/on "character"})
-                                  (:acme.sw.human/home_planet
-                                    {:edn-query-language.eql-graphql/on "human"})
-                                  :__typename]}
-            {:edn-query-language.eql-graphql/on "Query"})
-           :__typename]))
+  (testing "basic object case"
+    (is (= (prepare-gql-query
+             [{:acme.sw.Query/human
+               [:acme.sw.human/id
+                :acme.sw.human/name]}])
+           '[{:acme.sw.Query/human
+              [:acme.sw.human/id
+               :acme.sw.human/name
+               :__typename]}
+             :__typename])))
+
+  (testing "uses ... on Type syntax to deal with polymorphic access"
+    (is (= (prepare-gql-query
+             [{:acme.sw.Query/hero
+               [:acme.sw.character/id
+                :acme.sw.character/name
+                :acme.sw.human/home_planet]}])
+           '[{:acme.sw.Query/hero
+              [:acme.sw.character/id
+               :acme.sw.character/name
+               (:acme.sw.human/home_planet
+                 {:edn-query-language.eql-graphql/on "human"})
+               :__typename]}
+             :__typename])))
 
   (testing "union"
     (is (= (prepare-gql-query
              [{:acme.sw.Query/hero
                {:acme.sw.types/human
                 [:acme.sw.human/name]}}])
-           '[({:acme.sw.Query/hero
-               {:acme.sw.types/human [:acme.sw.human/name]}}
-              {:edn-query-language.eql-graphql/on "Query"})
+           '[{:acme.sw.Query/hero
+              {:acme.sw.types/human [:acme.sw.human/name]}}
              :__typename]))))
 
 (deftest integration-tests

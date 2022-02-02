@@ -57,6 +57,7 @@
     "OBJECT" name
     "INTERFACE" name
     "SCALAR" name
+    "ENUM" name
     nil))
 
 (defn type->field-name [env {:strs [kind name ofType]}]
@@ -106,23 +107,29 @@
       (get response "data")
       ast)))
 
-(defn inject-gql-on [{:keys [dispatch-key] :as node}]
+(defn inject-gql-on [parent-type {:keys [dispatch-key] :as node}]
   (if (keyword? dispatch-key)
-    (let [type-name (-> (namespace dispatch-key)
-                        (str/split #"\.")
-                        last)]
-      (assoc-in node [:params ::eql-gql/on] type-name))
+    (if-let [type-name (some-> (namespace dispatch-key)
+                               (str/split #"\.")
+                               last)]
+      (cond-> node
+        (not= type-name parent-type)
+        (assoc-in [:params ::eql-gql/on] type-name))
+      node)
     node))
 
-(defn prepare-gql-ast [ast]
+(defn prepare-gql-ast [env ast]
   (map-children
-    (fn [{:keys [type] :as node}]
+    (fn [{:keys [type dispatch-key] :as node}]
       (if (= type :union-entry)
         node
-        (coll/update-if node :children
-                        (fn [children]
-                          (-> (mapv inject-gql-on children)
-                              (conj (pf.eql/prop :__typename)))))))
+        (let [value-type (if (= type :root)
+                           (get-in env [::gql-query-type "name"])
+                           (get-in env [::gql-fields-index dispatch-key]))]
+          (coll/update-if node :children
+                          (fn [children]
+                            (-> (mapv #(inject-gql-on value-type %) children)
+                                (conj (pf.eql/prop :__typename))))))))
     ast))
 
 (defn format-error [{:strs [message path]}]
@@ -130,9 +137,9 @@
 
 (defn process-gql-request [{::keys [request] :as schema-env} env input]
   (clet [node     (::pcp/node env)
-         ast      (-> (or (::pcp/foreign-ast node)
-                          (::pcp/foreign-ast input))
-                      prepare-gql-ast)
+         ast      (->> (or (::pcp/foreign-ast node)
+                           (::pcp/foreign-ast input))
+                       (prepare-gql-ast schema-env))
          gql      (-> ast eql-gql/ast->graphql)
          response (request gql)
          response (walk/postwalk #(set-union-path schema-env %) response)]
@@ -213,6 +220,12 @@
         interfaces))
     {}
     gql-object-types))
+
+(defn fields-index [{::keys [gql-types-index]}]
+  (into {}
+        (comp (mapcat #(get % "fields"))
+              (map (juxt ::gql-field-name ::gql-field-leaf-type)))
+        (vals gql-types-index)))
 
 (defn pathom-main-resolver [env gql-dynamic-op-name]
   (pco/resolver gql-dynamic-op-name
@@ -305,7 +318,7 @@
          ::pco/output       [gql-field-leaf-fq-type]})
       fields)))
 
-(defn build-pathom-indexes [{::keys [namespace ident-map] :as env} schema]
+(defn build-indexes [{::keys [namespace ident-map] :as env} schema]
   (let [{:strs [queryType mutationType types]} (get-in schema ["data" "__schema"])
 
         env'            (assoc env ::gql-mutation-type-name (get mutationType "name"))
@@ -349,7 +362,8 @@
                           ::gql-object-types object-types
                           ::gql-interface-types interface-types
                           ::gql-query-type query-type
-                          ::gql-mutation-type mutation-type)
+                          ::gql-mutation-type mutation-type
+                          ::gql-fields-index (fields-index env'))
 
         env'            (assoc env' ::gql-interface-usages-index (interfaces-usage-index env'))]
     (assoc env'
@@ -364,7 +378,7 @@
 
 (defn load-schema [config request]
   (clet [gql-schema-raw (request (eql-gql/query->graphql schema-query))]
-    (build-pathom-indexes
+    (build-indexes
       (assoc config ::request request)
       gql-schema-raw)))
 

@@ -7,6 +7,7 @@
 (def token (System/getenv "GITHUB_TOKEN"))
 
 (defn request [query]
+  (tap> ["Q" query])
   (-> @(http/request
          {:url     "https://api.github.com/graphql"
           :method  :post
@@ -29,3 +30,4 @@
 (comment
   (time
     (def env (make-env))))
+
