@@ -34,9 +34,7 @@
                 :acme.sw.human/name]}])
            '[{:acme.sw.Query/human
               [:acme.sw.human/id
-               :acme.sw.human/name
-               :__typename]}
-             :__typename])))
+               :acme.sw.human/name]}])))
 
   (testing "uses ... on Type syntax to deal with polymorphic access"
     (is (= (prepare-gql-query
@@ -48,9 +46,7 @@
               [:acme.sw.character/id
                :acme.sw.character/name
                (:acme.sw.human/home_planet
-                 {:edn-query-language.eql-graphql/on "human"})
-               :__typename]}
-             :__typename])))
+                 {:edn-query-language.eql-graphql/on "human"})]}])))
 
   (testing "union"
     (is (= (prepare-gql-query
@@ -58,8 +54,7 @@
                {:acme.sw.types/human
                 [:acme.sw.human/name]}}])
            '[{:acme.sw.Query/hero
-              {:acme.sw.types/human [:acme.sw.human/name]}}
-             :__typename]))))
+              {:acme.sw.types/human [:acme.sw.human/name]}}]))))
 
 (deftest integration-tests
   (testing "running query root entry"

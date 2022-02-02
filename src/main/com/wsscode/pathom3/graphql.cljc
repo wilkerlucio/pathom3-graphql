@@ -128,8 +128,7 @@
                            (get-in env [::gql-fields-index dispatch-key]))]
           (coll/update-if node :children
                           (fn [children]
-                            (-> (mapv #(inject-gql-on value-type %) children)
-                                (conj (pf.eql/prop :__typename))))))))
+                            (mapv #(inject-gql-on value-type %) children))))))
     ast))
 
 (defn format-error [{:strs [message path]}]
