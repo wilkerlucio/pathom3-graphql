@@ -16,7 +16,7 @@
     [edn-query-language.core :as eql]
     [edn-query-language.eql-graphql :as eql-gql]))
 
-(>def ::ident-map
+(>def ::root-entries-map
   (s/map-of string?
             (s/map-of string?
                       (s/tuple string? string?))))
@@ -191,7 +191,7 @@
         (assoc <>
           ::gql-type-id-field (coll/find-first #(-> % (get "name") (= "id")) (get <> "fields"))))))
 
-(defn inferred-ident-map [{::keys [gql-types-index]} {:strs [fields]}]
+(defn inferred-root-entries-map [{::keys [gql-types-index]} {:strs [fields]}]
   (into {}
         (keep
           (fn [{::keys     [gql-field-leaf-type gql-id-arg gql-list-type?]
@@ -236,7 +236,7 @@
 (defn pathom-query-entry-resolver [type-name]
   (pbir/constantly-resolver type-name {}))
 
-(defn pathom-ident-map-resolve
+(defn pathom-root-entries-map-resolve
   [{::keys [gql-dynamic-op-name] :as env}
    {::keys [gql-field-name]}]
   (fn ident-map-resolve [{::pcp/keys [node] :as env'} input]
@@ -263,7 +263,7 @@
 (defn pathom-ident-map-resolvers
   [{::keys [gql-query-type
             gql-types-index
-            ident-map
+            root-entries-map
             namespace]
     :as    env}]
   (let [query-fields (get gql-query-type "fields")
@@ -280,12 +280,12 @@
 
               input       (mapv #(entity-field-key env (first %) (second %)) (vals params))
               output-type (get-in gql-types-index [gql-field-leaf-type ::gql-type-name])
-              resolve     (pathom-ident-map-resolve env field)]
+              resolve     (pathom-root-entries-map-resolve env field)]
           {::pco/op-name op-name
            ::pco/input   input
            ::pco/output  [output-type]
            ::pco/resolve resolve}))
-      ident-map)))
+      root-entries-map)))
 
 (defn pathom-type-resolvers
   [{::keys [namespace
@@ -317,16 +317,16 @@
          ::pco/output       [gql-field-leaf-fq-type]})
       fields)))
 
-(defn build-indexes [{::keys [namespace ident-map] :as env} schema]
+(defn build-indexes [{::keys [namespace root-entries-map] :as env} schema]
   (let [{:strs [queryType mutationType types]} (get-in schema ["data" "__schema"])
 
-        env'            (assoc env ::gql-mutation-type-name (get mutationType "name"))
+        env'             (assoc env ::gql-mutation-type-name (get mutationType "name"))
 
-        dynamic-op-name (symbol namespace "pathom-entry-dynamic-resolver")
+        dynamic-op-name  (symbol namespace "pathom-entry-dynamic-resolver")
 
-        types-index     (coll/index-by #(get % "name")
-                                       (into [] (comp (map #(adapt-type env' %))
-                                                      (filter ::gql-type-name)) types))
+        types-index      (coll/index-by #(get % "name")
+                                        (into [] (comp (map #(adapt-type env' %))
+                                                       (filter ::gql-type-name)) types))
 
         env'            (assoc env'
                           ::gql-dynamic-op-name dynamic-op-name
@@ -337,32 +337,33 @@
                             (let [field-adapter (partial adapt-field env' type)]
                               (update type "fields" #(mapv field-adapter %)))) types-index)
 
-        env'            (assoc env' ::gql-types-index types-index)
+        env'             (assoc env' ::gql-types-index types-index)
 
-        indexable-types (into [] (filter ::gql-type-indexable?) (vals types-index))
-        object-types    (into [] (filter #(-> % (get "kind") (= "OBJECT"))) (vals types-index))
-        interface-types (into [] (filter #(-> % (get "kind") (= "INTERFACE"))) (vals types-index))
+        indexable-types  (into [] (filter ::gql-type-indexable?) (vals types-index))
+        object-types     (into [] (filter #(-> % (get "kind") (= "OBJECT"))) (vals types-index))
+        interface-types  (into [] (filter #(-> % (get "kind") (= "INTERFACE"))) (vals types-index))
 
-        query-type      (get types-index (get queryType "name"))
-        mutation-type   (get types-index (get mutationType "name"))
+        query-type       (get types-index (get queryType "name"))
+        mutation-type    (get types-index (get mutationType "name"))
 
-        ident-map       (merge
-                          (inferred-ident-map (assoc env' ::gql-types-index types-index)
-                                              query-type)
-                          ident-map)
+        root-entries-map (merge
+                           (inferred-root-entries-map
+                             (assoc env' ::gql-types-index types-index)
+                             query-type)
+                           root-entries-map)
 
-        transients      (cond-> (into #{} (map ::gql-type-name) indexable-types)
-                          mutation-type
-                          (conj (get mutation-type ::gql-type-name)))
+        transients       (cond-> (into #{} (map ::gql-type-name) indexable-types)
+                           mutation-type
+                           (conj (get mutation-type ::gql-type-name)))
 
-        env'            (assoc env'
-                          ::ident-map ident-map
-                          ::gql-indexable-types indexable-types
-                          ::gql-object-types object-types
-                          ::gql-interface-types interface-types
-                          ::gql-query-type query-type
-                          ::gql-mutation-type mutation-type
-                          ::gql-fields-index (fields-index env'))
+        env'             (assoc env'
+                           ::root-entries-map root-entries-map
+                           ::gql-indexable-types indexable-types
+                           ::gql-object-types object-types
+                           ::gql-interface-types interface-types
+                           ::gql-query-type query-type
+                           ::gql-mutation-type mutation-type
+                           ::gql-fields-index (fields-index env'))
 
         env'            (assoc env' ::gql-interface-usages-index (interfaces-usage-index env'))]
     (assoc env'

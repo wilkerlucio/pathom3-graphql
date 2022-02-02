@@ -58,8 +58,8 @@
         {::p.gql/namespace "swapi"}
         request)
       (p.gql/connect-graphql
-        {::p.gql/namespace "tmdb"
-         ::p.gql/ident-map {"node" {"id" ["Node" "id"]}}}
+        {::p.gql/namespace        "tmdb"
+         ::p.gql/root-entries-map {"node" {"id" ["Node" "id"]}}}
         request-tmdb)
       (pci/register
         [(pbir/alias-resolver :tmdb.Movie/id :tmdb.Node/id)
