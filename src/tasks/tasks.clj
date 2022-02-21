@@ -152,7 +152,7 @@
     (str/trim (slurp "VERSION"))))
 
 (defn artifact-path []
-  (str "target/pathom3-" (tasks/current-version) ".jar"))
+  (str "target/pathom3-graphql-" (tasks/current-version) ".jar"))
 
 (defn version-tag
   ([] (version-tag (current-version)))
