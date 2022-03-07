@@ -44,4 +44,4 @@ This library provides an implementation to integrate GraphQL services in Pathom 
   [:swapi.Film/title])
 ```
 
-Check the [demos folder](tree/main/demos/com/wsscode/pathom3/graphql/demos) for more example setups.
+Check the [demos folder](demos/com/wsscode/pathom3/graphql/demos) for more example setups.
