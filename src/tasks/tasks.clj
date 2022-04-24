@@ -11,6 +11,14 @@
     (java.time.format
       DateTimeFormatter)))
 
+;; region vars
+
+(def organization "wsscode")
+(def project-name "pathom3-graphql")
+(def alpha? true)
+
+;; endregion
+
 ;; region helpers
 
 (defn check [p]
@@ -152,7 +160,7 @@
     (str/trim (slurp "VERSION"))))
 
 (defn artifact-path []
-  (str "target/pathom3-graphql-" (tasks/current-version) ".jar"))
+  (str "target/" project-name "-" (tasks/current-version) ".jar"))
 
 (defn version-tag
   ([] (version-tag (current-version)))
@@ -169,10 +177,14 @@
   ([current-version]
    (let [today (current-date)
          [_ date iteration] (re-find #"(\d{4}\.\d{2}\.\d{2})(?:-(\d+))?" (or current-version ""))]
-     (str (if (= date today)
-            (str date "-" (or (some-> iteration Integer/parseInt inc) 1))
-            today)
-          "-alpha"))))
+     (cond->
+       (if (= date today)
+         (str date "-" (or (some-> iteration Integer/parseInt inc) 1))
+         today)
+
+       alpha?
+       (str
+         "-alpha")))))
 
 (defn released?
   ([] (released? (current-version)))

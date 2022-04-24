@@ -20,6 +20,9 @@
                  http-kit/http-kit         {:mvn/version "2.5.3"}
                  macroz/tangle             {:mvn/version "0.2.1"}}}
 
+  :tasks
+  {:extra-paths ["src/tasks"]}
+
   :test
   {:extra-paths ["test"]
    :extra-deps  {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
