@@ -43,11 +43,14 @@
          {:type [:kind :name {:ofType 3}]}]}
        {:inputFields
         [:name
-         {:type [:kind :name {:ofType 3}]}]}]}]}])
+         {:type [:kind :name {:ofType 3}]}]}
+       {:possibleTypes
+        [:name :kind]}]}]}])
 
 (defn prefixed-key [{::keys [namespace]} p s] (keyword (str namespace "." p) s))
 (defn type-key [env s] (prefixed-key env "types" s))
 (defn interface-key [env s] (prefixed-key env "interfaces" s))
+(defn union-key [env s] (prefixed-key env "unions" s))
 
 (defn entity-field-key [{::keys [namespace]} entity field]
   (keyword (str namespace "." entity) field))
@@ -58,6 +61,7 @@
     "LIST" (recur ofType)
     "OBJECT" name
     "INTERFACE" name
+    "UNION" name
     "SCALAR" name
     "ENUM" name
     nil))
@@ -68,6 +72,7 @@
     "LIST" (recur env ofType)
     "OBJECT" (type-key env name)
     "INTERFACE" (interface-key env name)
+    "UNION" (union-key env name)
     nil))
 
 (defn map-children
@@ -159,7 +164,7 @@
                            (pcp/get-node graph <> ::pco/op-name))))
 
 (defn type-indexable? [{::keys [gql-mutation-type-name]} {:strs [name kind]}]
-  (and (contains? #{"OBJECT" "INTERFACE"} kind)
+  (and (contains? #{"OBJECT" "INTERFACE" "UNION"} kind)
        (not= gql-mutation-type-name name)))
 
 (defn type-chain [type]
@@ -308,15 +313,17 @@
 
 (defn pathom-type-resolvers
   [{::keys [namespace
+            gql-types-index
             gql-indexable-types
             gql-interface-usages-index
             gql-dynamic-op-name]}]
   (mapv
-    (fn [{:strs [name fields] ::keys [gql-type-name]}]
+    (fn [{:strs [name fields possibleTypes] ::keys [gql-type-name]}]
       (let [gql-type-resolver-op-name (symbol namespace (str name "-resolver"))
             gql-type-resolver-input   [gql-type-name]
             gql-interface-usages      (get gql-interface-usages-index gql-type-name)
             gql-type-resolver-output  (-> (or (some-> gql-interface-usages vec) [])
+                                          (into (map #(-> (get-in gql-types-index [(get % "name") ::gql-type-name]))) possibleTypes)
                                           (into (map ::gql-field-output-entry) fields))]
         {::pco/op-name      gql-type-resolver-op-name
          ::pco/dynamic-name gql-dynamic-op-name
