@@ -92,7 +92,7 @@
                :acme.sw.character/name    "Lando Calrissian",
                :acme.sw.human/home_planet "Socorro"}})))
 
-    (testing "union query"
+    (testing "interface query"
       (is (= (p.eql/process
                (pci/register gql-env
                              (pbir/alias-resolver :acme.sw.human/home_planet :planet))
@@ -100,6 +100,13 @@
                  {:acme.sw.types/human
                   [:planet]}}])
              {:acme.sw.Query/hero {:planet "Socorro"}}))))
+
+  (testing "union query"
+    (is (= (p.eql/process
+             gql-env
+             '[{(:acme.sw.Query/search {:query "foo"})
+                [:acme.sw.human/name]}])
+           {:acme.sw.Query/search {:acme.sw.human/name "Luke"}})))
 
   (testing "starting from known root entry mapping"
     (is (= (p.eql/process

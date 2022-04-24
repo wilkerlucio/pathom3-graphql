@@ -56,8 +56,16 @@
                                 :default-value "2001"}}
                  :resolve :droid}
 
+     :search    {:type    :search_result
+                 :args    {:query {:type String}}
+                 :resolve :search}
+
      :allHumans {:type    (non-null (list :human))
                  :resolve :all-humans}}
+
+    :unions
+    {:search_result
+     {:members [:droid :human]}}
 
     :mutations
     {:create_human
@@ -97,6 +105,14 @@
      :name             "Droid Sample"
      :primary_function ["Work"]}))
 
+(defn resolve-search [_context _arguments _value]
+  (schema/tag-with-type
+    {:id          1000
+     :name        "Luke"
+     :home_planet "Tatooine"
+     :appears_in  ["NEWHOPE" "EMPIRE" "JEDI"]}
+    :human))
+
 (defn resolve-friends [_context _args _value])
 
 (defn create-human [_context args _value]
@@ -114,6 +130,7 @@
                               :human                 resolve-human
                               :droid                 resolve-droid
                               :friends               resolve-friends
+                              :search                resolve-search
                               :all-humans            all-humans
                               :mutation/create-human create-human})
       schema/compile))
@@ -127,7 +144,7 @@
 (comment
   (tap> (load-schema request))
 
-  (request (eql-gql/query->graphql p.gql/schema-query) )
+  (request (eql-gql/query->graphql p.gql/schema-query))
 
   (-> @(http/request
          {:url     "https://swapi-graphql.netlify.app/.netlify/functions/index"
@@ -181,5 +198,12 @@
   (json/read-str (request (eql-gql/query->graphql p.gql/schema-query)))
   (request "{\n  human {\n    id\n    name\n    friends {\n      name\n    }\n  }\n}")
 
-  (request "query {\n  human {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n"
-    ))
+  (request "query {\n  human {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n")
+  (request
+    "query {
+      search(query: \"bla\") {
+        ... on human {
+          name
+        }
+      }
+    }"))
