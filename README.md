@@ -1,4 +1,4 @@
-# Pathom 3 GraphQL [![Clojars Project](https://img.shields.io/clojars/v/com.wsscode/pathom3-graphql.svg)](https://clojars.org/com.wsscode/pathom3-graphql) ![Test](https://github.com/wilkerlucio/pathom3-graphql/workflows/Test/badge.svg) [![cljdoc badge](https://cljdoc.xyz/badge/com.wsscode/pathom3-graphql)](https://cljdoc.xyz/d/com.wsscode/pathom3-graphql/CURRENT)
+# Pathom 3 GraphQL [![Clojars Project](https://img.shields.io/clojars/v/com.wsscode/pathom3-graphql.svg)](https://clojars.org/com.wsscode/pathom3-graphql) ![Test](https://github.com/wilkerlucio/pathom3-graphql/workflows/Test/badge.svg)
 
 This library provides an implementation to integrate GraphQL services in Pathom environments.
 
