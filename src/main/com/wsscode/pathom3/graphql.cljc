@@ -4,7 +4,7 @@
     [clojure.spec.alpha :as s]
     [clojure.string :as str]
     [clojure.walk :as walk]
-    [com.fulcrologic.guardrails.core :refer [<- => >def >defn >fdef ? |]]
+    [com.fulcrologic.guardrails.core :refer [>def]]
     [com.wsscode.misc.coll :as coll]
     [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
     [com.wsscode.pathom3.connect.indexes :as pci]
@@ -262,23 +262,23 @@
     (if-not (next-is-expected-dynamic? env' gql-dynamic-op-name)
       (throw (ex-info "Unexpected node structure. Please report this issue."
                       {})))
-    (let [input (set/rename-keys input (get root-entries-map name))
+    (clet [input     (set/rename-keys input (get root-entries-map name))
 
-          {::pcp/keys [node graph] :as env'}
-          (update-in env' [::pcp/graph
-                           ::pcp/nodes
-                           (::pcp/run-next node)
-                           ::pcp/foreign-ast]
-            (fn [{:keys [children] :as f-ast}]
-              (assoc f-ast :children
-                [(assoc (pf.eql/prop gql-field-name)
-                   :type :join
-                   :params input
-                   :children children)])))
-          next-node (pcp/get-node graph (::pcp/run-next node))
-          response  (process-gql-request env
-                                         (-> env' (assoc ::pcp/node next-node))
-                                         input)]
+           {::pcp/keys [node graph] :as env'}
+           (update-in env' [::pcp/graph
+                            ::pcp/nodes
+                            (::pcp/run-next node)
+                            ::pcp/foreign-ast]
+             (fn [{:keys [children] :as f-ast}]
+               (assoc f-ast :children
+                 [(assoc (pf.eql/prop gql-field-name)
+                    :type :join
+                    :params input
+                    :children children)])))
+           next-node (pcp/get-node graph (::pcp/run-next node))
+           response  (process-gql-request env
+                                          (-> env' (assoc ::pcp/node next-node))
+                                          input)]
       (get response gql-field-name))))
 
 (defn pathom-root-entries-resolvers
@@ -308,6 +308,7 @@
           {::pco/op-name op-name
            ::pco/input   input
            ::pco/output  [output-type]
+           ::pco/cache?  false
            ::pco/resolve resolve}))
       root-entries-map)))
 
