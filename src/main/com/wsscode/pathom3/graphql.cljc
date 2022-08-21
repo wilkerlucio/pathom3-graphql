@@ -4,7 +4,7 @@
     [clojure.spec.alpha :as s]
     [clojure.string :as str]
     [clojure.walk :as walk]
-    [com.fulcrologic.guardrails.core :refer [<- => >def >defn >fdef ? |]]
+    [com.fulcrologic.guardrails.core :refer [>def]]
     [com.wsscode.misc.coll :as coll]
     [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
     [com.wsscode.pathom3.connect.indexes :as pci]
@@ -308,6 +308,7 @@
           {::pco/op-name op-name
            ::pco/input   input
            ::pco/output  [output-type]
+           ::pco/cache?  false
            ::pco/resolve resolve}))
       root-entries-map)))
 
