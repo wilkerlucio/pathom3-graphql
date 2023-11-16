@@ -9,7 +9,7 @@
 
 (def token (System/getenv "GITLAB_TOKEN"))
 
-(defn request [query]
+(defn request [_ query]
   (-> @(http/request
          {:url     "https://gitlab.com/api/graphql"
           :method  :post

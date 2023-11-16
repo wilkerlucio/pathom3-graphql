@@ -1,26 +1,26 @@
 (ns com.wsscode.pathom3.graphql.demos.swapi
   (:require
-    [clojure.data.json :as json]
-    [com.wsscode.pathom3.graphql :as p.gql]
-    [com.wsscode.pathom3.interface.eql :as p.eql]
-    [org.httpkit.client :as http]))
+   [clojure.data.json :as json]
+   [com.wsscode.pathom3.graphql :as p.gql]
+   [com.wsscode.pathom3.interface.eql :as p.eql]
+   [org.httpkit.client :as http]))
 
-(defn request [query]
+(defn request [_ query]
   (-> @(http/request
          {:url     "https://swapi-graphql.netlify.app/.netlify/functions/index"
           :method  :post
           :headers {"Content-Type" "application/json"
                     "Accept"       "*/*"}
           :body    (json/write-str {:query query})})
-      (doto tap>)
-      :body
-      json/read-str))
+    (doto tap>)
+    :body
+    json/read-str))
 
 (defn make-env []
   (-> {}
-      (p.gql/connect-graphql
-        {::p.gql/namespace "swapi"}
-        request)))
+    (p.gql/connect-graphql
+      {::p.gql/namespace "swapi"}
+      request)))
 
 
 (comment

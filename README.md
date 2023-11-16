@@ -15,7 +15,7 @@ This library provides an implementation to integrate GraphQL services in Pathom 
     [com.wsscode.pathom3.interface.eql :as p.eql]
     [org.httpkit.client :as http]))
 
-(defn request [query]
+(defn request [_ query]
   (-> @(http/request
          {:url     "https://swapi-graphql.netlify.app/.netlify/functions/index"
           :method  :post
