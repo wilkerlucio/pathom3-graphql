@@ -1,14 +1,14 @@
 (ns com.wsscode.pathom3.graphql.demos.swapi
   (:require
-    [com.wsscode.pathom3.graphql :as p.gql]
-    [com.wsscode.pathom3.interface.async.eql :as p.eql]
-    [promesa.core :as p]))
+   [com.wsscode.pathom3.graphql :as p.gql]
+   [com.wsscode.pathom3.interface.async.eql :as p.eql]
+   [promesa.core :as p]))
 
 (defn request-swapi-graphql
-  [query]
+  [_ query]
   (p/let [url "https://swapi-graphql.netlify.app/.netlify/functions/index"
-          headers #js {"Content-Type"  "application/json"
-                       "Accept"        "*/*"}
+          headers #js {"Content-Type" "application/json"
+                       "Accept"       "*/*"}
           body (js/JSON.stringify (clj->js {:query query}))
           resp (js/fetch url #js {:method  "POST"
                                   :headers headers
@@ -18,9 +18,9 @@
 
 (def env
   (-> {}
-      (p.gql/connect-graphql
-        {::p.gql/namespace "swapi"}
-        request-swapi-graphql)))
+    (p.gql/connect-graphql
+      {::p.gql/namespace "swapi"}
+      request-swapi-graphql)))
 
 (comment
   (p/let [env env]

@@ -1,13 +1,13 @@
 (ns com.wsscode.pathom3.graphql.test.server
   (:require
-    [clojure.data.json :as json]
-    [com.walmartlabs.lacinia :refer [execute]]
-    [com.walmartlabs.lacinia.schema :as schema]
-    [com.walmartlabs.lacinia.util :as util]
-    [com.wsscode.pathom3.graphql :as p.gql]
-    [com.wsscode.pathom3.interface.smart-map :as psm]
-    [edn-query-language.eql-graphql :as eql-gql]
-    [org.httpkit.client :as http]))
+   [clojure.data.json :as json]
+   [com.walmartlabs.lacinia :refer [execute]]
+   [com.walmartlabs.lacinia.schema :as schema]
+   [com.walmartlabs.lacinia.util :as util]
+   [com.wsscode.pathom3.graphql :as p.gql]
+   [com.wsscode.pathom3.interface.smart-map :as psm]
+   [edn-query-language.eql-graphql :as eql-gql]
+   [org.httpkit.client :as http]))
 
 (def schema
   '{:enums
@@ -126,20 +126,20 @@
 
 (def star-wars-schema
   (-> schema
-      (util/attach-resolvers {:hero                  resolve-hero
-                              :human                 resolve-human
-                              :droid                 resolve-droid
-                              :friends               resolve-friends
-                              :search                resolve-search
-                              :all-humans            all-humans
-                              :mutation/create-human create-human})
-      schema/compile))
+    (util/attach-resolvers {:hero                  resolve-hero
+                            :human                 resolve-human
+                            :droid                 resolve-droid
+                            :friends               resolve-friends
+                            :search                resolve-search
+                            :all-humans            all-humans
+                            :mutation/create-human create-human})
+    schema/compile))
 
-(defn request [query]
+(defn request [_ query]
   (json/read-str (json/write-str (execute star-wars-schema query nil nil))))
 
 (defn load-schema [request]
-  (p.gql/load-schema {::p.gql/namespace "acme.stars"} request))
+  (p.gql/load-schema {} {::p.gql/namespace "acme.stars"} request))
 
 (comment
   (tap> (load-schema request))
@@ -152,48 +152,48 @@
           :headers {"Content-Type" "application/json"
                     "Accept"       "*/*"}
           :body    (json/write-str {:query "{\n  allPeople {\n    people {\n      id\n      name\n    }\n  }\n}"})})
-      :body
-      json/read-str)
+    :body
+    json/read-str)
 
   (-> (load-schema request)
-      ::p.gql/gql-query-type
-      ::p.gql/gql-type-indexable?)
+    ::p.gql/gql-query-type
+    ::p.gql/gql-type-indexable?)
 
   (-> (load-schema request)
-      ::p.gql/gql-query-type
-      ::p.gql/gql-type-qualified-name)
+    ::p.gql/gql-query-type
+    ::p.gql/gql-type-qualified-name)
 
   (-> (load-schema request)
-      ::p.gql/gql-types-index)
+    ::p.gql/gql-types-index)
 
   (->> (load-schema request)
-       ::p.gql/gql-all-types
-       (mapv ::p.gql/gql-type-qualified-name))
+    ::p.gql/gql-all-types
+    (mapv ::p.gql/gql-type-qualified-name))
 
   (->> (load-schema request)
-       ::p.gql/gql-all-types)
+    ::p.gql/gql-all-types)
 
   (->> (load-schema request)
-       ::p.gql/gql-indexable-types
-       )
+    ::p.gql/gql-indexable-types
+    )
 
   (->> (psm/sm-replace-context schema
          {::p.gql/gql-type-name "human"})
-       ::p.gql/gql-type-interfaces
-       (mapv ::p.gql/gql-type-qualified-name))
+    ::p.gql/gql-type-interfaces
+    (mapv ::p.gql/gql-type-qualified-name))
 
   (-> schema
-      (assoc ::p.gql/gql-type-name "human")
-      ::p.gql/gql-indexable-type-resolver)
+    (assoc ::p.gql/gql-type-name "human")
+    ::p.gql/gql-indexable-type-resolver)
 
   (tap> (psm/sm-entity schema))
 
   (->> schema
-       ::p.gql/gql-indexable-types
-       (mapv ::p.gql/gql-indexable-type-resolver))
+    ::p.gql/gql-indexable-types
+    (mapv ::p.gql/gql-indexable-type-resolver))
 
   (->> schema
-       ::p.gql/gql-pathom-indexes)
+    ::p.gql/gql-pathom-indexes)
 
   (json/read-str (request (eql-gql/query->graphql p.gql/schema-query)))
   (request "{\n  human {\n    id\n    name\n    friends {\n      name\n    }\n  }\n}")

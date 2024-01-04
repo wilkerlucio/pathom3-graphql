@@ -12,7 +12,7 @@
 (def schema-config
   {::p.gql/namespace "acme.sw"})
 
-(def schema (p.gql/load-schema schema-config t-server/request))
+(def schema (p.gql/load-schema {} schema-config t-server/request))
 
 (comment
   (tap> schema))
