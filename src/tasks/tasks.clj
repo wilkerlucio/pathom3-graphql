@@ -194,9 +194,8 @@
 (defn str-arg [s]
   (pr-str (str s)))
 
-(defn artifact-build
-  ([]
-   (clojure "-X:jar" ":jar" (artifact-path) ":version" (str-arg (current-version)))))
+(defn artifact-build []
+  (clojure "-X:jar" ":jar" (artifact-path) ":version" (str-arg (current-version))))
 
 (defn artifact-deploy
   ([] (artifact-deploy (artifact-path)))

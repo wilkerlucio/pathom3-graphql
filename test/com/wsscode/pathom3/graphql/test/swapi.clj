@@ -8,7 +8,7 @@
     [com.wsscode.pathom3.interface.eql :as p.eql]
     [org.httpkit.client :as http]))
 
-(defn request [query]
+(defn request [_ query]
   (-> @(http/request
          {:url     "https://swapi-graphql.netlify.app/.netlify/functions/index"
           :method  :post
@@ -18,7 +18,7 @@
       :body
       json/read-str))
 
-(defn request-tmdb [query]
+(defn request-tmdb [_ query]
   (-> @(http/request
          {:url     "https://tmdb.apps.quintero.io/"
           :method  :post
@@ -68,7 +68,7 @@
        "swapi")))
 
 (comment
-  (def schema (p.gql/load-schema {::p.gql/namespace "swapi"}
+  (def schema (p.gql/load-schema {} {::p.gql/namespace "swapi"}
      request))
 
   (p.eql/process-one schema ::p.gql/gql-inferred-ident-map)

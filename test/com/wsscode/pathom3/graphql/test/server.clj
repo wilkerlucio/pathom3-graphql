@@ -1,13 +1,13 @@
 (ns com.wsscode.pathom3.graphql.test.server
   (:require
-   [clojure.data.json :as json]
-   [com.walmartlabs.lacinia :refer [execute]]
-   [com.walmartlabs.lacinia.schema :as schema]
-   [com.walmartlabs.lacinia.util :as util]
-   [com.wsscode.pathom3.graphql :as p.gql]
-   [com.wsscode.pathom3.interface.smart-map :as psm]
-   [edn-query-language.eql-graphql :as eql-gql]
-   [org.httpkit.client :as http]))
+    [clojure.data.json :as json]
+    [com.walmartlabs.lacinia :refer [execute]]
+    [com.walmartlabs.lacinia.schema :as schema]
+    [com.walmartlabs.lacinia.util :as util]
+    [com.wsscode.pathom3.graphql :as p.gql]
+    [com.wsscode.pathom3.interface.smart-map :as psm]
+    [edn-query-language.eql-graphql :as eql-gql]
+    [org.httpkit.client :as http]))
 
 (def schema
   '{:enums
@@ -113,7 +113,7 @@
      :appears_in  ["NEWHOPE" "EMPIRE" "JEDI"]}
     :human))
 
-(defn resolve-friends [_context _args _value])
+(defn resolve-friends [_context _args _value] nil)
 
 (defn create-human [_context args _value]
   {:id          3000
@@ -126,14 +126,14 @@
 
 (def star-wars-schema
   (-> schema
-    (util/attach-resolvers {:hero                  resolve-hero
-                            :human                 resolve-human
-                            :droid                 resolve-droid
-                            :friends               resolve-friends
-                            :search                resolve-search
-                            :all-humans            all-humans
-                            :mutation/create-human create-human})
-    schema/compile))
+      (util/attach-resolvers {:hero                  resolve-hero
+                              :human                 resolve-human
+                              :droid                 resolve-droid
+                              :friends               resolve-friends
+                              :search                resolve-search
+                              :all-humans            all-humans
+                              :mutation/create-human create-human})
+      schema/compile))
 
 (defn request [_ query]
   (json/read-str (json/write-str (execute star-wars-schema query nil nil))))
@@ -144,7 +144,7 @@
 (comment
   (tap> (load-schema request))
 
-  (request (eql-gql/query->graphql p.gql/schema-query))
+  (request {} (eql-gql/query->graphql p.gql/schema-query))
 
   (-> @(http/request
          {:url     "https://swapi-graphql.netlify.app/.netlify/functions/index"
@@ -195,11 +195,11 @@
   (->> schema
     ::p.gql/gql-pathom-indexes)
 
-  (json/read-str (request (eql-gql/query->graphql p.gql/schema-query)))
-  (request "{\n  human {\n    id\n    name\n    friends {\n      name\n    }\n  }\n}")
+  (json/read-str (request {} (eql-gql/query->graphql p.gql/schema-query)))
+  (request {} "{\n  human {\n    id\n    name\n    friends {\n      name\n    }\n  }\n}")
 
-  (request "query {\n  human {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n")
-  (request
+  (request {} "query {\n  human {\n    id\n    name\n    __typename\n  }\n  __typename\n}\n")
+  (request {}
     "query {
       search(query: \"bla\") {
         ... on human {
