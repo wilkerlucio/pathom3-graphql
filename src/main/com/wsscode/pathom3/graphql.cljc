@@ -1,26 +1,26 @@
 (ns com.wsscode.pathom3.graphql
   (:require
-   [clojure.set :as set]
-   [clojure.spec.alpha :as s]
-   [clojure.string :as str]
-   [clojure.walk :as walk]
-   [com.fulcrologic.guardrails.core :refer [>def]]
-   [com.wsscode.misc.coll :as coll]
-   [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
-   [com.wsscode.pathom3.connect.indexes :as pci]
-   [com.wsscode.pathom3.connect.operation :as pco]
-   [com.wsscode.pathom3.connect.planner :as pcp]
-   [com.wsscode.pathom3.connect.runner :as pcr]
-   [com.wsscode.pathom3.format.eql :as pf.eql]
-   [com.wsscode.pathom3.plugin :as p.plugin]
-   [com.wsscode.promesa.macros :refer [clet]]
-   [edn-query-language.core :as eql]
-   [edn-query-language.eql-graphql :as eql-gql]))
+    [clojure.set :as set]
+    [clojure.spec.alpha :as s]
+    [clojure.string :as str]
+    [clojure.walk :as walk]
+    [com.fulcrologic.guardrails.core :refer [>def]]
+    [com.wsscode.misc.coll :as coll]
+    [com.wsscode.pathom3.connect.built-in.resolvers :as pbir]
+    [com.wsscode.pathom3.connect.indexes :as pci]
+    [com.wsscode.pathom3.connect.operation :as pco]
+    [com.wsscode.pathom3.connect.planner :as pcp]
+    [com.wsscode.pathom3.connect.runner :as pcr]
+    [com.wsscode.pathom3.format.eql :as pf.eql]
+    [com.wsscode.pathom3.plugin :as p.plugin]
+    [com.wsscode.promesa.macros :refer [clet]]
+    [edn-query-language.core :as eql]
+    [edn-query-language.eql-graphql :as eql-gql]))
 
 (>def ::root-entries-map
   (s/map-of string?
-    (s/map-of string?
-      (s/tuple string? string?))))
+            (s/map-of string?
+                      (s/tuple string? string?))))
 
 (>def ::namespace string?)
 (>def ::root-entries-map (s/map-of string? (s/map-of string? (s/tuple string? string?))))
@@ -98,8 +98,8 @@
 
 (defn convert-back [env response]
   (let [ast (-> env
-              ::pcp/node
-              ::pcp/foreign-ast)]
+                ::pcp/node
+                ::pcp/foreign-ast)]
     (pf.eql/map-select-ast
       (p.plugin/register
         {::p.plugin/id
@@ -109,7 +109,7 @@
          (fn [select-entry]
            (fn [env source {:keys [key] :as ast}]
              (when-let [entry (select-entry env source
-                                (-> ast (update :key name) (update :dispatch-key name)))]
+                                            (-> ast (update :key name) (update :dispatch-key name)))]
                (coll/make-map-entry key (val entry)))))})
       (get response "data")
       ast)))
@@ -117,8 +117,8 @@
 (defn inject-gql-on [parent-type {:keys [dispatch-key] :as node}]
   (if (keyword? dispatch-key)
     (if-let [type-name (some-> (namespace dispatch-key)
-                         (str/split #"\.")
-                         last)]
+                               (str/split #"\.")
+                               last)]
       (cond-> node
         (not= type-name parent-type)
         (assoc-in [:params ::eql-gql/on] type-name))
@@ -134,8 +134,8 @@
                            (get-in env [::gql-query-type "name"])
                            (get-in env [::gql-fields-index dispatch-key]))]
           (coll/update-if node :children
-            (fn [children]
-              (mapv #(inject-gql-on value-type %) children))))))
+                          (fn [children]
+                            (mapv #(inject-gql-on value-type %) children))))))
     ast))
 
 (defn format-error [{:strs [message path]}]
@@ -144,8 +144,8 @@
 (defn process-gql-request [{::keys [request] :as schema-env} env input]
   (clet [node (::pcp/node env)
          ast (->> (or (::pcp/foreign-ast node)
-                    (::pcp/foreign-ast input))
-               (prepare-gql-ast schema-env))
+                      (::pcp/foreign-ast input))
+                  (prepare-gql-ast schema-env))
          gql (-> ast eql-gql/ast->graphql)
          response (request env gql)
          response (walk/postwalk #(set-union-path schema-env %) response)]
@@ -165,7 +165,7 @@
 
 (defn type-indexable? [{::keys [gql-mutation-type-name]} {:strs [name kind]}]
   (and (contains? #{"OBJECT" "INTERFACE" "UNION"} kind)
-    (not= gql-mutation-type-name name)))
+       (not= gql-mutation-type-name name)))
 
 (defn type-chain [type]
   (->> (coll/iterate-while
@@ -177,41 +177,41 @@
         field-type-fq-name (get-in gql-types-index [field-type-name ::gql-type-name])
         field-name         (entity-field-key env type-name name)]
     (-> field
-      (assoc
-        ::gql-field-name field-name
-        ::gql-field-leaf-type field-type-name
-        ::gql-field-leaf-fq-type field-type-fq-name
-        ::gql-list-type? (->> (type-chain type)
-                           (some #(= "LIST" (get % "kind")))
-                           boolean)
-        ::gql-id-arg (coll/find-first #(-> % (get "name") (= "id")) args)
-        ::gql-field-output-entry (if field-type-fq-name
-                                   {field-name [field-type-fq-name]}
-                                   field-name)))))
+        (assoc
+          ::gql-field-name field-name
+          ::gql-field-leaf-type field-type-name
+          ::gql-field-leaf-fq-type field-type-fq-name
+          ::gql-list-type? (->> (type-chain type)
+                                (some #(= "LIST" (get % "kind")))
+                                boolean)
+          ::gql-id-arg (coll/find-first #(-> % (get "name") (= "id")) args)
+          ::gql-field-output-entry (if field-type-fq-name
+                                     {field-name [field-type-fq-name]}
+                                     field-name)))))
 
 (defn adapt-type [env type]
   (-> type
-    (assoc
-      ::gql-type-name (type->field-name env type)
-      ::gql-type-indexable? (type-indexable? env type))
-    (as-> <>
-      (assoc <>
-        ::gql-type-id-field (coll/find-first #(-> % (get "name") (= "id")) (get <> "fields"))))))
+      (assoc
+        ::gql-type-name (type->field-name env type)
+        ::gql-type-indexable? (type-indexable? env type))
+      (as-> <>
+        (assoc <>
+          ::gql-type-id-field (coll/find-first #(-> % (get "name") (= "id")) (get <> "fields"))))))
 
 (defn inferred-root-entries-map [{::keys [gql-types-index]} {:strs [fields]}]
   (into {}
-    (keep
-      (fn [{::keys     [gql-field-leaf-type gql-id-arg gql-list-type?]
-            field-name "name"}]
-        (let [{::keys [gql-type-id-field gql-type-indexable?]
-               :strs  [name]}
-              (get gql-types-index gql-field-leaf-type)]
-          (if (and (not gql-list-type?)
-                gql-type-indexable?
-                gql-type-id-field
-                gql-id-arg)
-            [field-name {(get gql-id-arg "name") [name (get gql-type-id-field "name")]}]))))
-    fields))
+        (keep
+          (fn [{::keys     [gql-field-leaf-type gql-id-arg gql-list-type?]
+                field-name "name"}]
+            (let [{::keys [gql-type-id-field gql-type-indexable?]
+                   :strs  [name]}
+                  (get gql-types-index gql-field-leaf-type)]
+              (if (and (not gql-list-type?)
+                       gql-type-indexable?
+                       gql-type-id-field
+                       gql-id-arg)
+                [field-name {(get gql-id-arg "name") [name (get gql-type-id-field "name")]}]))))
+        fields))
 
 (defn interfaces-usage-index [{::keys [gql-object-types gql-types-index]}]
   (reduce
@@ -229,9 +229,9 @@
 
 (defn fields-index [{::keys [gql-types-index]}]
   (into {}
-    (comp (mapcat #(get % "fields"))
-      (map (juxt ::gql-field-name ::gql-field-leaf-type)))
-    (vals gql-types-index)))
+        (comp (mapcat #(get % "fields"))
+              (map (juxt ::gql-field-name ::gql-field-leaf-type)))
+        (vals gql-types-index)))
 
 (defn index-root-entries-fields [env]
   (update env
@@ -240,9 +240,9 @@
       (coll/map-vals
         (fn [args]
           (into args
-            (map (fn [[arg [type field]]]
-                   (coll/make-map-entry (entity-field-key env type field) arg)))
-            args))
+                (map (fn [[arg [type field]]]
+                       (coll/make-map-entry (entity-field-key env type field) arg)))
+                args))
         root-entries))))
 
 (defn pathom-main-resolver [env gql-dynamic-op-name]
@@ -261,7 +261,7 @@
   (fn root-entries-resolve [{::pcp/keys [node] :as env'} input]
     (if-not (next-is-expected-dynamic? env' gql-dynamic-op-name)
       (throw (ex-info "Unexpected node structure. Please report this issue."
-               {})))
+                      {})))
     (clet [input (set/rename-keys input (get root-entries-map name))
 
            {::pcp/keys [node graph] :as env'}
@@ -271,14 +271,14 @@
                             ::pcp/foreign-ast]
              (fn [{:keys [children] :as f-ast}]
                (assoc f-ast :children
-                            [(assoc (pf.eql/prop gql-field-name)
-                               :type :join
-                               :params input
-                               :children children)])))
+                 [(assoc (pf.eql/prop gql-field-name)
+                    :type :join
+                    :params input
+                    :children children)])))
            next-node (pcp/get-node graph (::pcp/run-next node))
            response (process-gql-request env
-                      (-> env' (assoc ::pcp/node next-node))
-                      input)]
+                                         (-> env' (assoc ::pcp/node next-node))
+                                         input)]
       (get response gql-field-name))))
 
 (defn pathom-root-entries-resolvers
@@ -290,7 +290,7 @@
   (let [query-fields (get gql-query-type "fields")
         find-field   (fn [field]
                        (coll/find-first #(-> % (get "name") (= field))
-                         query-fields))]
+                                        query-fields))]
     (mapv
       (fn [[field-name params]]
         (let [op-name     (symbol namespace (str field-name "-ident-entry-resolver"))
@@ -300,9 +300,9 @@
               (find-field field-name)
 
               input       (->> params
-                            (coll/filter-keys string?)
-                            (vals)
-                            (mapv #(entity-field-key env (first %) (second %))))
+                               (coll/filter-keys string?)
+                               (vals)
+                               (mapv #(entity-field-key env (first %) (second %))))
               output-type (get-in gql-types-index [gql-field-leaf-type ::gql-type-name])
               resolve     (pathom-root-entries-map-resolve env field)]
           {::pco/op-name op-name
@@ -324,8 +324,8 @@
             gql-type-resolver-input   [gql-type-name]
             gql-interface-usages      (get gql-interface-usages-index gql-type-name)
             gql-type-resolver-output  (-> (or (some-> gql-interface-usages vec) [])
-                                        (into (map #(-> (get-in gql-types-index [(get % "name") ::gql-type-name]))) possibleTypes)
-                                        (into (map ::gql-field-output-entry) fields))]
+                                          (into (map #(-> (get-in gql-types-index [(get % "name") ::gql-type-name]))) possibleTypes)
+                                          (into (map ::gql-field-output-entry) fields))]
         {::pco/op-name      gql-type-resolver-op-name
          ::pco/dynamic-name gql-dynamic-op-name
          ::pco/input        gql-type-resolver-input
@@ -352,8 +352,8 @@
         dynamic-op-name  (symbol namespace "pathom-entry-dynamic-resolver")
 
         types-index      (coll/index-by #(get % "name")
-                           (into [] (comp (map #(adapt-type env' %))
-                                      (filter ::gql-type-name)) types))
+                                        (into [] (comp (map #(adapt-type env' %))
+                                                       (filter ::gql-type-name)) types))
 
         env'             (assoc env'
                            ::gql-dynamic-op-name dynamic-op-name
@@ -397,12 +397,12 @@
     (assoc env'
       ::gql-pathom-indexes
       (-> {::pci/transient-attrs transients}
-        (pci/register
-          [(pathom-main-resolver env' dynamic-op-name)
-           (pathom-query-entry-resolver (::gql-type-name query-type))
-           (mapv pco/resolver (pathom-root-entries-resolvers env'))
-           (mapv pco/resolver (pathom-type-resolvers env'))
-           (mapv pco/mutation (pathom-mutations env'))])))))
+          (pci/register
+            [(pathom-main-resolver env' dynamic-op-name)
+             (pathom-query-entry-resolver (::gql-type-name query-type))
+             (mapv pco/resolver (pathom-root-entries-resolvers env'))
+             (mapv pco/resolver (pathom-type-resolvers env'))
+             (mapv pco/mutation (pathom-mutations env'))])))))
 
 (defn load-schema [env config request]
   (clet [gql-schema-raw (request env (eql-gql/query->graphql schema-query))]
@@ -427,4 +427,4 @@
   (clet [{::keys [gql-pathom-indexes]} (load-schema env config request)
          env env]
     (-> env
-      (pci/register gql-pathom-indexes))))
+        (pci/register gql-pathom-indexes))))
